@@ -1,11 +1,11 @@
 {
   "domain": "elprisetjustnu",
   "name": "Elpriset Just Nu",
-  "codeowners": ["@SamMahdi"],
+  "codeowners": ["@TSA3000"],
   "config_flow": true,
-  "documentation": "https://www.elprisetjustnu.se/elpris-api",
+  "documentation": "https://github.com/TSA3000/ha-elprisetjustnu",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "requirements": ["python-dateutil"],
-  "version": "v0.1.5"
+  "version": "0.1.6"
 }
