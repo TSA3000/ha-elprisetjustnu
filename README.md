@@ -1,6 +1,6 @@
 # ⚡ Elpriset Just Nu - Home Assistant Integration
 
-**Version:** 0.1.5 | **Last Updated:** February 22, 2026, 19:50 CET
+**Version:** 0.1.6 | **Last Updated:** February 22, 2026, 19:50 CET
 
 A custom component for Home Assistant that fetches the current and upcoming electricity prices for Swedish price areas (SE1, SE2, SE3, SE4). 
 
