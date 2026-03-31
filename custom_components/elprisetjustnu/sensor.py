@@ -13,7 +13,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, CONF_REGION, CONF_UNIT, CONF_VAT, DEFAULT_VAT
+from .const import DOMAIN, CONF_REGION, CONF_UNIT, CONF_INCLUDE_VAT, CONF_VAT, CONF_SHOW_UNIT, DEFAULT_VAT
 from .coordinator import ElprisetCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -87,10 +87,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
     coordinator: ElprisetCoordinator = hass.data[DOMAIN][entry.entry_id]
     region = entry.options.get(CONF_REGION, entry.data.get(CONF_REGION))
     unit = entry.options.get(CONF_UNIT, entry.data.get(CONF_UNIT, "öre/kWh"))
-    vat = entry.options.get(CONF_VAT, entry.data.get(CONF_VAT, DEFAULT_VAT))
+    include_vat = entry.options.get(CONF_INCLUDE_VAT, entry.data.get(CONF_INCLUDE_VAT, True))
+    vat = entry.options.get(CONF_VAT, entry.data.get(CONF_VAT, DEFAULT_VAT)) if include_vat else 0
+    show_unit = entry.options.get(CONF_SHOW_UNIT, entry.data.get(CONF_SHOW_UNIT, True))
 
     entities = [
-        ElprisSensor(coordinator, region, unit, vat, description, entry.entry_id)
+        ElprisSensor(coordinator, region, unit, vat, show_unit, description, entry.entry_id)
         for description in SENSOR_TYPES
     ]
     async_add_entities(entities)
@@ -136,6 +138,7 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         region: str,
         unit: str,
         vat: float,
+        show_unit: bool,
         description: SensorEntityDescription,
         entry_id: str,
     ):
@@ -146,7 +149,7 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         self._vat = vat
         self._attr_unique_id = f"{entry_id}_{region.lower()}_{description.key}"
         self._attr_has_entity_name = True
-        self._attr_native_unit_of_measurement = unit
+        self._attr_native_unit_of_measurement = unit if show_unit else None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
             name=f"Elpriset Just Nu ({region})",

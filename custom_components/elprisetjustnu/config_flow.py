@@ -5,7 +5,17 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
-from .const import DOMAIN, CONF_REGION, CONF_UNIT, CONF_VAT, DEFAULT_VAT, REGIONS, UNITS
+from .const import (
+    DOMAIN,
+    CONF_REGION,
+    CONF_UNIT,
+    CONF_INCLUDE_VAT,
+    CONF_VAT,
+    CONF_SHOW_UNIT,
+    DEFAULT_VAT,
+    REGIONS,
+    UNITS,
+)
 
 
 class ElprisetJustNuConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -39,6 +49,7 @@ class ElprisetJustNuConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                vol.Required(CONF_INCLUDE_VAT, default=True): selector.BooleanSelector(),
                 vol.Required(CONF_VAT, default=DEFAULT_VAT): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=0,
@@ -48,6 +59,7 @@ class ElprisetJustNuConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode=selector.NumberSelectorMode.BOX,
                     )
                 ),
+                vol.Required(CONF_SHOW_UNIT, default=True): selector.BooleanSelector(),
             }
         )
 
@@ -74,8 +86,14 @@ class ElprisetJustNuOptionsFlowHandler(config_entries.OptionsFlow):
         current_unit = self.config_entry.options.get(
             CONF_UNIT, self.config_entry.data.get(CONF_UNIT, "öre/kWh")
         )
+        current_include_vat = self.config_entry.options.get(
+            CONF_INCLUDE_VAT, self.config_entry.data.get(CONF_INCLUDE_VAT, True)
+        )
         current_vat = self.config_entry.options.get(
             CONF_VAT, self.config_entry.data.get(CONF_VAT, DEFAULT_VAT)
+        )
+        current_show_unit = self.config_entry.options.get(
+            CONF_SHOW_UNIT, self.config_entry.data.get(CONF_SHOW_UNIT, True)
         )
 
         options_schema = vol.Schema(
@@ -92,6 +110,7 @@ class ElprisetJustNuOptionsFlowHandler(config_entries.OptionsFlow):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                vol.Required(CONF_INCLUDE_VAT, default=current_include_vat): selector.BooleanSelector(),
                 vol.Required(CONF_VAT, default=current_vat): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=0,
@@ -101,6 +120,7 @@ class ElprisetJustNuOptionsFlowHandler(config_entries.OptionsFlow):
                         mode=selector.NumberSelectorMode.BOX,
                     )
                 ),
+                vol.Required(CONF_SHOW_UNIT, default=current_show_unit): selector.BooleanSelector(),
             }
         )
 
