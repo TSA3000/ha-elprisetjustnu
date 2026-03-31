@@ -17,10 +17,12 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 - **Selectable unit:** öre/kWh or SEK/kWh — switch anytime via Configure
 - **15-minute intervals:** full 96-slot daily coverage
 - **Smart attributes:** price trend, price level, tomorrow average, full price data
-- **ApexCharts support:** `price_data` attribute with timestamps ready for charts
+- **ApexCharts support:** `price_data` attribute with today + tomorrow timestamps for seamless 48h charts
 - **Error recovery:** keeps last known values if the API is temporarily unavailable
 - **Device grouping:** all sensors under one Device in Home Assistant
+- **Diagnostics:** download debug info from the HA UI for easy troubleshooting
 - **UI configuration:** no YAML required
+- **Zero external dependencies:** uses only Python built-ins and Home Assistant libraries
 
 ---
 
@@ -48,6 +50,8 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 5. Click **Submit**
 
 > To change the unit or area later, click **Configure** on the integration card.
+
+> Each price area can only be configured once. To change the area, use the Configure button or remove and re-add.
 
 ---
 
@@ -83,13 +87,15 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | `price_trend` | `rising` | vs next 15-min slot |
 | `price_level` | `cheap` | relative to today's range |
 | `next_price` | `132.5` | next slot price |
-| `price_data` | `[{"start": "...", "price": 177.55}, ...]` | all slots with timestamps |
+| `price_data` | `[{"start": "...", "price": 177.55}, ...]` | today + tomorrow slots with timestamps |
 | `all_prices_today` | `[112.3, 118.1, ...]` | flat list of today's prices |
-| `data_points` | `96` | number of slots fetched |
+| `data_points` | `96` | number of today's slots |
 | `price_area` | `SE3` | configured area |
 | `unit` | `öre/kWh` | selected unit |
 | `tomorrow_available` | `true` | whether tomorrow's prices are published |
 | `tomorrow_average` | `145.2` | tomorrow's average price |
+
+> **Note:** `price_data` includes both today and tomorrow when available, making it easy to create charts spanning across midnight.
 
 ---
 
@@ -110,10 +116,9 @@ header:
   title: Electricity Prices SE3
   show_states: true
   colorize_states: true
-graph_span: 32h
+graph_span: 48h
 span:
-  end: day
-  offset: +1d
+  start: day
 now:
   show: true
   label: Now
@@ -206,6 +211,16 @@ automation:
             {{ state_attr('sensor.elpriset_just_nu_se3_current_price',
                'tomorrow_average') }} öre/kWh
 ```
+
+---
+
+## 🔍 Diagnostics
+
+If you need to report a bug, you can download diagnostics data directly from the HA UI:
+
+**Settings → Devices & Services → Elpriset Just Nu → ⋮ → Download Diagnostics**
+
+This provides a safe summary of your configuration and data state without exposing sensitive information.
 
 ---
 
