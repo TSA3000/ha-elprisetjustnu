@@ -5,7 +5,7 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
-from .const import DOMAIN, CONF_REGION, CONF_UNIT, REGIONS, UNITS
+from .const import DOMAIN, CONF_REGION, CONF_UNIT, CONF_VAT, DEFAULT_VAT, REGIONS, UNITS
 
 
 class ElprisetJustNuConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -39,6 +39,15 @@ class ElprisetJustNuConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                vol.Required(CONF_VAT, default=DEFAULT_VAT): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=100,
+                        step=1,
+                        unit_of_measurement="%",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
             }
         )
 
@@ -65,6 +74,9 @@ class ElprisetJustNuOptionsFlowHandler(config_entries.OptionsFlow):
         current_unit = self.config_entry.options.get(
             CONF_UNIT, self.config_entry.data.get(CONF_UNIT, "öre/kWh")
         )
+        current_vat = self.config_entry.options.get(
+            CONF_VAT, self.config_entry.data.get(CONF_VAT, DEFAULT_VAT)
+        )
 
         options_schema = vol.Schema(
             {
@@ -78,6 +90,15 @@ class ElprisetJustNuOptionsFlowHandler(config_entries.OptionsFlow):
                     selector.SelectSelectorConfig(
                         options=UNITS,
                         mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Required(CONF_VAT, default=current_vat): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=100,
+                        step=1,
+                        unit_of_measurement="%",
+                        mode=selector.NumberSelectorMode.BOX,
                     )
                 ),
             }

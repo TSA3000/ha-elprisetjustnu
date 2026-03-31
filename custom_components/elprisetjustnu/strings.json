@@ -6,7 +6,8 @@
         "description": "Select your Swedish electricity price area and preferred unit.",
         "data": {
           "region": "Price area",
-          "unit": "Unit"
+          "unit": "Unit",
+          "vat": "VAT / Moms (%)"
         }
       }
     },
@@ -24,7 +25,8 @@
         "title": "Change settings",
         "data": {
           "region": "Price area",
-          "unit": "Unit"
+          "unit": "Unit",
+          "vat": "VAT / Moms (%)"
         }
       }
     }

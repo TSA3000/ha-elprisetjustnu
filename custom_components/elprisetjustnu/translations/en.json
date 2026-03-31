@@ -3,10 +3,11 @@
     "step": {
       "user": {
         "title": "Set up Elpriset Just Nu",
-        "description": "Select your Swedish electricity price area and preferred unit.",
+        "description": "Select your Swedish electricity price area, preferred unit, and VAT rate.",
         "data": {
           "region": "Price area",
-          "unit": "Unit"
+          "unit": "Unit",
+          "vat": "VAT / Moms (%)"
         }
       }
     },
@@ -24,7 +25,41 @@
         "title": "Change settings",
         "data": {
           "region": "Price area",
-          "unit": "Unit"
+          "unit": "Unit",
+          "vat": "VAT / Moms (%)"
+        }
+      }
+    }
+  }
+}{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Elpriset Just Nu",
+        "description": "Select your Swedish electricity price area, preferred unit, and VAT rate.",
+        "data": {
+          "region": "Price area",
+          "unit": "Unit",
+          "vat": "VAT / Moms (%)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the Elpriset Just Nu API.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This price area is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Change settings",
+        "data": {
+          "region": "Price area",
+          "unit": "Unit",
+          "vat": "VAT / Moms (%)"
         }
       }
     }

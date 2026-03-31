@@ -8,7 +8,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.elprisetjustnu.const import CONF_REGION, CONF_UNIT, DOMAIN
+from custom_components.elprisetjustnu.const import CONF_REGION, CONF_UNIT, CONF_VAT, DOMAIN
 
 from .conftest import MOCK_CONFIG_DATA
 
@@ -82,7 +82,7 @@ async def test_different_regions_allowed(hass: HomeAssistant) -> None:
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={CONF_REGION: "SE3", CONF_UNIT: "öre/kWh"},
+        user_input={CONF_REGION: "SE3", CONF_UNIT: "öre/kWh", CONF_VAT: 25},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
@@ -92,7 +92,7 @@ async def test_different_regions_allowed(hass: HomeAssistant) -> None:
     )
     result2 = await hass.config_entries.flow.async_configure(
         result2["flow_id"],
-        user_input={CONF_REGION: "SE1", CONF_UNIT: "SEK/kWh"},
+        user_input={CONF_REGION: "SE1", CONF_UNIT: "SEK/kWh", CONF_VAT: 0},
     )
     assert result2["type"] is FlowResultType.CREATE_ENTRY
 
@@ -104,7 +104,7 @@ async def test_sek_unit_option(hass: HomeAssistant) -> None:
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={CONF_REGION: "SE4", CONF_UNIT: "SEK/kWh"},
+        user_input={CONF_REGION: "SE4", CONF_UNIT: "SEK/kWh", CONF_VAT: 25},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_UNIT] == "SEK/kWh"

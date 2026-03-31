@@ -24,13 +24,13 @@ from .conftest import SAMPLE_TODAY, SAMPLE_TOMORROW, CET
 
 
 def test_convert_ore():
-    """Test SEK to öre conversion."""
+    """Test SEK to öre conversion without VAT."""
     assert _convert(1.5, "öre/kWh") == 150.0
     assert _convert(0.123, "öre/kWh") == 12.3
 
 
 def test_convert_sek():
-    """Test SEK pass-through."""
+    """Test SEK pass-through without VAT."""
     assert _convert(1.5, "SEK/kWh") == 1.5
     assert _convert(0.1234, "SEK/kWh") == 0.1234
 
@@ -39,6 +39,15 @@ def test_convert_zero():
     """Test zero price conversion."""
     assert _convert(0.0, "öre/kWh") == 0.0
     assert _convert(0.0, "SEK/kWh") == 0.0
+
+
+def test_convert_with_vat():
+    """Test that VAT is applied correctly."""
+    # 1.0 SEK * 1.25 = 1.25 SEK = 125 öre
+    assert _convert(1.0, "öre/kWh", 25) == 125.0
+    assert _convert(1.0, "SEK/kWh", 25) == 1.25
+    # 0% VAT = no change
+    assert _convert(1.0, "öre/kWh", 0) == 100.0
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +119,7 @@ def _make_coordinator_mock(today=None, tomorrow=None):
     return coordinator
 
 
-def _make_sensor(key: str, unit: str = "öre/kWh", today=None, tomorrow=None):
+def _make_sensor(key: str, unit: str = "öre/kWh", vat: float = 0, today=None, tomorrow=None):
     """Create a sensor with a mock coordinator for testing."""
     coord = _make_coordinator_mock(today, tomorrow)
     desc = next(d for d in SENSOR_TYPES if d.key == key)
@@ -120,6 +129,7 @@ def _make_sensor(key: str, unit: str = "öre/kWh", today=None, tomorrow=None):
     sensor.entity_description = desc
     sensor.region = "SE3"
     sensor._unit = unit
+    sensor._vat = vat
     sensor._attr_unique_id = f"test_{key}"
     sensor._attr_has_entity_name = True
     sensor._attr_native_unit_of_measurement = unit
@@ -325,3 +335,60 @@ class TestExtraStateAttributes:
         assert attrs["tomorrow_average"] is None
         # price_data should be today only = 96 entries
         assert len(attrs["price_data"]) == 96
+
+    def test_attributes_include_vat_info(self):
+        now = datetime(2026, 3, 31, 10, 7, tzinfo=CET)
+        with patch(
+            "custom_components.elprisetjustnu.sensor.dt_util"
+        ) as mock_dt:
+            mock_dt.now.return_value = now
+
+            sensor = _make_sensor("current_price", vat=25, today=SAMPLE_TODAY)
+            attrs = sensor.extra_state_attributes
+
+        assert attrs["vat_percent"] == 25
+        assert attrs["includes_vat"] is True
+
+    def test_attributes_vat_zero(self):
+        now = datetime(2026, 3, 31, 10, 7, tzinfo=CET)
+        with patch(
+            "custom_components.elprisetjustnu.sensor.dt_util"
+        ) as mock_dt:
+            mock_dt.now.return_value = now
+
+            sensor = _make_sensor("current_price", vat=0, today=SAMPLE_TODAY)
+            attrs = sensor.extra_state_attributes
+
+        assert attrs["vat_percent"] == 0
+        assert attrs["includes_vat"] is False
+
+
+class TestVATApplied:
+    """Tests that VAT is correctly applied to sensor values."""
+
+    def test_current_price_with_vat(self):
+        now = datetime(2026, 3, 31, 10, 7, tzinfo=CET)
+        with patch(
+            "custom_components.elprisetjustnu.sensor.dt_util"
+        ) as mock_dt:
+            mock_dt.now.return_value = now
+
+            sensor_no_vat = _make_sensor("current_price", vat=0, today=SAMPLE_TODAY)
+            sensor_with_vat = _make_sensor("current_price", vat=25, today=SAMPLE_TODAY)
+
+            price_no_vat = sensor_no_vat.native_value
+            price_with_vat = sensor_with_vat.native_value
+
+        assert price_no_vat is not None
+        assert price_with_vat is not None
+        assert price_with_vat == round(price_no_vat * 1.25, 2)
+
+    def test_highest_price_with_vat(self):
+        sensor_no_vat = _make_sensor("highest_price_today", vat=0, today=SAMPLE_TODAY)
+        sensor_with_vat = _make_sensor("highest_price_today", vat=25, today=SAMPLE_TODAY)
+
+        high_no_vat = sensor_no_vat.native_value
+        high_with_vat = sensor_with_vat.native_value
+
+        assert high_no_vat is not None
+        assert high_with_vat > high_no_vat

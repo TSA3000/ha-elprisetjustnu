@@ -3,10 +3,11 @@
     "step": {
       "user": {
         "title": "Konfigurera Elpriset Just Nu",
-        "description": "Välj ditt svenska elområde och önskad enhet.",
+        "description": "Välj ditt svenska elområde, önskad enhet och momssats.",
         "data": {
           "region": "Elområde",
-          "unit": "Enhet"
+          "unit": "Enhet",
+          "vat": "Moms (%)"
         }
       }
     },
@@ -24,7 +25,8 @@
         "title": "Ändra inställningar",
         "data": {
           "region": "Elområde",
-          "unit": "Enhet"
+          "unit": "Enhet",
+          "vat": "Moms (%)"
         }
       }
     }

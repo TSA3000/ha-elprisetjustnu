@@ -13,7 +13,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, CONF_REGION, CONF_UNIT
+from .const import DOMAIN, CONF_REGION, CONF_UNIT, CONF_VAT, DEFAULT_VAT
 from .coordinator import ElprisetCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -87,9 +87,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
     coordinator: ElprisetCoordinator = hass.data[DOMAIN][entry.entry_id]
     region = entry.options.get(CONF_REGION, entry.data.get(CONF_REGION))
     unit = entry.options.get(CONF_UNIT, entry.data.get(CONF_UNIT, "öre/kWh"))
+    vat = entry.options.get(CONF_VAT, entry.data.get(CONF_VAT, DEFAULT_VAT))
 
     entities = [
-        ElprisSensor(coordinator, region, unit, description, entry.entry_id)
+        ElprisSensor(coordinator, region, unit, vat, description, entry.entry_id)
         for description in SENSOR_TYPES
     ]
     async_add_entities(entities)
@@ -107,11 +108,13 @@ def _get_price_level(current: float, low: float, high: float) -> str:
     return "normal"
 
 
-def _convert(sek_per_kwh: float, unit: str) -> float:
-    """Convert SEK/kWh to the selected unit."""
+def _convert(sek_per_kwh: float, unit: str, vat: float = 0) -> float:
+    """Convert SEK/kWh to the selected unit, optionally adding VAT."""
+    vat_multiplier = 1 + vat / 100
+    price = sek_per_kwh * vat_multiplier
     if unit == "öre/kWh":
-        return round(sek_per_kwh * 100, 2)
-    return round(sek_per_kwh, 4)
+        return round(price * 100, 2)
+    return round(price, 4)
 
 
 def _find_block(blocks: list, predicate):
@@ -132,6 +135,7 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         coordinator: ElprisetCoordinator,
         region: str,
         unit: str,
+        vat: float,
         description: SensorEntityDescription,
         entry_id: str,
     ):
@@ -139,6 +143,7 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         self.entity_description = description
         self.region = region
         self._unit = unit
+        self._vat = vat
         self._attr_unique_id = f"{entry_id}_{region.lower()}_{description.key}"
         self._attr_has_entity_name = True
         self._attr_native_unit_of_measurement = unit
@@ -165,7 +170,7 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         return self.coordinator.data.get("tomorrow", [])
 
     def _prices_converted(self, data: list) -> list[float]:
-        return [_convert(b["SEK_per_kWh"], self._unit) for b in data]
+        return [_convert(b["SEK_per_kWh"], self._unit, self._vat) for b in data]
 
     def _current_block(self):
         now = dt_util.now()
@@ -204,10 +209,10 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
                 return round(sum(prices) / len(prices), 4)
             if key == "current_price":
                 block = self._current_block()
-                return _convert(block["SEK_per_kWh"], self._unit) if block else None
+                return _convert(block["SEK_per_kWh"], self._unit, self._vat) if block else None
             if key == "next_price":
                 block = self._next_block()
-                return _convert(block["SEK_per_kWh"], self._unit) if block else None
+                return _convert(block["SEK_per_kWh"], self._unit, self._vat) if block else None
 
         # --- Tomorrow sensors (None / unknown until API publishes) ---
         tomorrow = self._tomorrow()
@@ -241,8 +246,8 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         current_block = self._current_block()
         next_block = self._next_block()
 
-        current = _convert(current_block["SEK_per_kWh"], self._unit) if current_block else None
-        next_val = _convert(next_block["SEK_per_kWh"], self._unit) if next_block else None
+        current = _convert(current_block["SEK_per_kWh"], self._unit, self._vat) if current_block else None
+        next_val = _convert(next_block["SEK_per_kWh"], self._unit, self._vat) if next_block else None
 
         # Trend detection
         trend = "unknown"
@@ -264,7 +269,7 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         price_data = [
             {
                 "start": b["time_start"],
-                "price": _convert(b["SEK_per_kWh"], self._unit),
+                "price": _convert(b["SEK_per_kWh"], self._unit, self._vat),
             }
             for b in combined_blocks
         ]
@@ -272,6 +277,8 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         return {
             "price_area": self.region,
             "unit": self._unit,
+            "vat_percent": self._vat,
+            "includes_vat": self._vat > 0,
             "price_trend": trend,
             "next_price": next_val,
             "price_level": (
