@@ -1,22 +1,35 @@
+"""Elpriset Just Nu integration."""
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN
+
+from .const import DOMAIN, CONF_REGION
+from .coordinator import ElprisetCoordinator
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Elpriset Just Nu from a config entry."""
     hass.data.setdefault(DOMAIN, {})
-    
-    # Listen for options updates and reload the integration if they change!
+
+    region = entry.options.get(CONF_REGION, entry.data.get(CONF_REGION))
+
+    coordinator = ElprisetCoordinator(hass, region)
+    await coordinator.async_config_entry_first_refresh()
+
+    hass.data[DOMAIN][entry.entry_id] = coordinator
+
     entry.async_on_unload(entry.add_update_listener(update_listener))
-    
-    # Forward the setup to the sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
 
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    unloaded = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    if unloaded:
+        hass.data[DOMAIN].pop(entry.entry_id)
+    return unloaded
 
-async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
-    """Reload the integration automatically if the user changes the region."""
+
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the integration when the user changes the region."""
     await hass.config_entries.async_reload(entry.entry_id)

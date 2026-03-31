@@ -1,6 +1,6 @@
 """Sensor platform for Elpriset Just Nu."""
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 import dateutil.parser
 
 from homeassistant.components.sensor import (
@@ -9,15 +9,11 @@ from homeassistant.components.sensor import (
     SensorStateClass,
     SensorEntityDescription,
 )
-from homeassistant.helpers.update_coordinator import (
-    DataUpdateCoordinator,
-    UpdateFailed,
-    CoordinatorEntity,
-)
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import DOMAIN, CONF_REGION, UPDATE_INTERVAL_MINUTES
+from .const import DOMAIN, CONF_REGION
+from .coordinator import ElprisetCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,49 +63,8 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the Elpriset Just Nu sensor platform."""
+    coordinator: ElprisetCoordinator = hass.data[DOMAIN][entry.entry_id]
     region = entry.options.get(CONF_REGION, entry.data.get(CONF_REGION))
-    session = async_get_clientsession(hass)
-
-    # Keep last known good data so sensors don't go unavailable on API hiccups
-    _last_known_data = {}
-
-    async def async_update_data():
-        """Fetch the latest pricing data from the API."""
-        now = datetime.now()
-        url = (
-            f"https://www.elprisetjustnu.se/api/v1/prices/"
-            f"{now.strftime('%Y')}/{now.strftime('%m')}-{now.strftime('%d')}_{region}.json"
-        )
-
-        try:
-            async with session.get(url, timeout=10) as response:
-                if response.status == 404:
-                    # Prices not published yet (normal before ~13:00 CET)
-                    _LOGGER.debug(
-                        "Elpriset API returned 404 - prices not yet available for today"
-                    )
-                    return _last_known_data.get("data") or []
-                response.raise_for_status()
-                data = await response.json()
-                _last_known_data["data"] = data
-                return data
-        except Exception as err:
-            if _last_known_data.get("data"):
-                _LOGGER.warning(
-                    "Elpriset API error, using last known data: %s", err
-                )
-                return _last_known_data["data"]
-            raise UpdateFailed(f"Error communicating with Elpriset API: {err}")
-
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name=f"elprisetjustnu_{region}_coordinator",
-        update_method=async_update_data,
-        update_interval=timedelta(minutes=UPDATE_INTERVAL_MINUTES),
-    )
-
-    await coordinator.async_config_entry_first_refresh()
 
     entities = [
         ElprisSensor(coordinator, region, description, entry.entry_id)
@@ -135,12 +90,11 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: DataUpdateCoordinator,
+        coordinator: ElprisetCoordinator,
         region: str,
         description: SensorEntityDescription,
         entry_id: str,
     ):
-        """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
         self.region = region
@@ -154,17 +108,12 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
             configuration_url="https://www.elprisetjustnu.se/elpris-api",
         )
 
-    def _get_prices_in_ore(self):
-        """Return all prices for today in öre/kWh."""
+    def _prices_in_ore(self) -> list[float]:
         if not self.coordinator.data:
             return []
-        return [
-            round(block["SEK_per_kWh"] * 100, 2)
-            for block in self.coordinator.data
-        ]
+        return [round(b["SEK_per_kWh"] * 100, 2) for b in self.coordinator.data]
 
-    def _get_current_block(self):
-        """Return the price block matching the current time."""
+    def _current_block(self):
         if not self.coordinator.data:
             return None
         now = datetime.now().astimezone()
@@ -175,71 +124,51 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
                 return block
         return None
 
-    def _get_next_block(self):
-        """Return the next upcoming price block."""
+    def _next_block(self):
         if not self.coordinator.data:
             return None
         now = datetime.now().astimezone()
-        future_blocks = [
-            block for block in self.coordinator.data
-            if dateutil.parser.parse(block["time_start"]) > now
+        future = [
+            b for b in self.coordinator.data
+            if dateutil.parser.parse(b["time_start"]) > now
         ]
-        return future_blocks[0] if future_blocks else None
+        return future[0] if future else None
 
     @property
     def native_value(self):
-        """Return the state of the sensor in öre/kWh."""
-        prices = self._get_prices_in_ore()
+        prices = self._prices_in_ore()
         if not prices:
             return None
-
         key = self.entity_description.key
-
         if key == "highest_price_today":
             return round(max(prices), 2)
-
         if key == "lowest_price_today":
             return round(min(prices), 2)
-
         if key == "average_price_today":
             return round(sum(prices) / len(prices), 2)
-
         if key == "current_price":
-            block = self._get_current_block()
+            block = self._current_block()
             return round(block["SEK_per_kWh"] * 100, 2) if block else None
-
         if key == "next_price":
-            block = self._get_next_block()
+            block = self._next_block()
             return round(block["SEK_per_kWh"] * 100, 2) if block else None
-
         return None
 
     @property
     def extra_state_attributes(self):
-        """Return extra attributes — only on the current_price sensor."""
         if self.entity_description.key != "current_price":
             return {}
-
-        prices = self._get_prices_in_ore()
+        prices = self._prices_in_ore()
         if not prices:
             return {}
-
-        current_block = self._get_current_block()
-        next_block = self._get_next_block()
-
+        current_block = self._current_block()
+        next_block = self._next_block()
         current = round(current_block["SEK_per_kWh"] * 100, 2) if current_block else None
         next_val = round(next_block["SEK_per_kWh"] * 100, 2) if next_block else None
-
         trend = "unknown"
         if current is not None and next_val is not None:
             diff = next_val - current
-            if diff > 1:
-                trend = "rising"
-            elif diff < -1:
-                trend = "falling"
-            else:
-                trend = "stable"
-
+            trend = "rising" if diff > 1 else "falling" if diff < -1 else "stable"
         return {
             "price_area": self.region,
             "currency": "öre/kWh",
