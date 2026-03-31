@@ -1,4 +1,4 @@
-# Release v0.2.0 — Quality & Reliability
+# Release v0.2.1 — Quality & Reliability
 
 ## ⚠️ Breaking
 
@@ -21,9 +21,23 @@
 - **Added `diagnostics.py`.** You can now download debug information from **Settings → Devices & Services → Elpriset Just Nu → ⋮ → Download Diagnostics**. This makes bug reports much easier.
 - **Used `PLATFORMS` constant.** Platform list is now defined once in `const.py` for easier future extension.
 
+## 🌍 Localization
+
+- **Added Swedish translation (`sv.json`).** The config flow and options UI are now fully localized in Swedish.
+
+## 🧪 Testing
+
+- **Added comprehensive unit test suite.** 40+ tests covering the coordinator, sensor platform, config flow, diagnostics, and helpers.
+- **Added GitHub Actions CI workflow.** Tests run automatically on push/PR against Python 3.12 and 3.13.
+
+## 🚀 CI/CD
+
+- **Added automated release workflow.** Pushing a `v*` tag now automatically creates a GitHub Release with a downloadable ZIP.
+
 ## 📦 Dependency Changes
 
 - Removed: `python-dateutil` (no longer needed)
+- Added (dev only): `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component`
 
 ## 📋 Full file changes
 
@@ -32,5 +46,11 @@
 - `__init__.py` — Uses `PLATFORMS` constant
 - `config_flow.py` — Duplicate entry prevention via `async_set_unique_id`
 - `sensor.py` — `dt_util.now()`, `fromisoformat`, removed `state_class` from aggregates, `suggested_display_precision`, combined `price_data`
-- `manifest.json` — Removed `python-dateutil`, bumped to `0.2.0`
-- `diagnostics.py` — New file for HA diagnostics support
+- `manifest.json` — Removed `python-dateutil`, bumped to `0.2.1`
+- `diagnostics.py` — **New** — HA diagnostics support
+- `translations/sv.json` — **New** — Swedish translation
+- `tests/` — **New** — Full test suite
+- `.github/workflows/tests.yaml` — **New** — CI test runner
+- `.github/workflows/release.yaml` — **New** — Automated release pipeline
+- `pytest.ini` — **New** — Pytest configuration
+- `requirements_test.txt` — **New** — Test dependencies

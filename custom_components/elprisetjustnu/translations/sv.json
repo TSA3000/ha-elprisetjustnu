@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfigurera Elpriset Just Nu",
+        "description": "Välj ditt svenska elområde och önskad enhet.",
+        "data": {
+          "region": "Elområde",
+          "unit": "Enhet"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kunde inte ansluta till Elpriset Just Nu API.",
+      "unknown": "Ett oväntat fel inträffade."
+    },
+    "abort": {
+      "already_configured": "Detta elområde är redan konfigurerat."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ändra inställningar",
+        "data": {
+          "region": "Elområde",
+          "unit": "Enhet"
+        }
+      }
+    }
+  }
+}
