@@ -17,6 +17,7 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 - **Selectable unit:** öre/kWh or SEK/kWh — switch anytime via Configure
 - **15-minute intervals:** full 96-slot daily coverage
 - **Smart attributes** on Current Price: price trend, price level, all daily prices
+- **ApexCharts support:** `price_data` attribute with timestamps ready for charts
 - **Error recovery:** keeps last known values if the API is temporarily unavailable
 - **Device grouping:** all sensors under one Device in Home Assistant
 - **UI configuration:** no YAML required
@@ -67,22 +68,104 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | `price_trend` | `rising` / `falling` / `stable` |
 | `price_level` | `cheap` / `normal` / `expensive` |
 | `next_price` | `132.5` |
-| `all_prices_today` | `[112.3, 118.1, ...]` (all 96 slots) |
+| `price_data` | `[{"start": "2026-...", "price": 177.55}, ...]` |
+| `all_prices_today` | `[112.3, 118.1, ...]` |
 | `data_points` | `96` |
 | `price_area` | `SE3` |
 | `unit` | `öre/kWh` |
 
 ---
 
-## 💡 Dashboard example (Entity Badge)
+## 📈 Dashboard Chart
 
-The integration works great as an Entity Badge on your dashboard.
-Set **Entity** to `Current Price` under the `Elpriset Just Nu (SE3)` device,
-enable **State** and **Icon**, and it will display live like:
+Requires [ApexCharts Card](https://github.com/RomRider/apexcharts-card) from HACS.
 
+![Electricity price chart SE3](images/apexcharts_ex01.png)
+
+Add this to your dashboard via **Edit → Add Card → Manual**:
+
+```yaml
+type: custom:apexcharts-card
+experimental:
+  color_threshold: true
+header:
+  show: true
+  title: Electricity Prices SE3
+  show_states: true
+  colorize_states: true
+graph_span: 32h
+span:
+  end: day
+  offset: +1d
+now:
+  show: true
+  label: Now
+  color: var(--primary-color)
+apex_config:
+  chart:
+    height: 190px
+  legend:
+    showForSingleSeries: false
+  plotOptions:
+    bar:
+      borderRadius: 0
+  yaxis:
+    min: 0
+    decimalsInFloat: 0
+    forceNiceScale: true
+series:
+  - entity: sensor.elpriset_just_nu_se3_current_price
+    name: " "
+    unit: " öre/kWh"
+    type: column
+    float_precision: 1
+    show:
+      extremas: true
+      in_header: before_now
+      header_color_threshold: true
+    data_generator: |
+      return entity.attributes.price_data.map((item) => {
+        return [new Date(item["start"]).getTime(), item["price"]];
+      });
+    color_threshold:
+      - value: 0
+        color: "#8be9fd"
+      - value: 100
+        color: "#50fa7b"
+      - value: 150
+        color: "#8be978"
+      - value: 200
+        color: "#f8f872"
+      - value: 250
+        color: "#ffb86c"
+      - value: 300
+        color: "#ff9859"
+      - value: 350
+        color: "#ff7846"
+      - value: 400
+        color: "#ff5555"
+  - entity: sensor.elpriset_just_nu_se3_current_price
+    name: Lowest
+    unit: " öre/kWh"
+    show:
+      in_chart: false
+      in_header: true
+    data_generator: |
+      let prices = entity.attributes.price_data.map(x => x.price);
+      return [[new Date().getTime(), Math.min(...prices)]];
+  - entity: sensor.elpriset_just_nu_se3_current_price
+    name: Highest
+    unit: " öre/kWh"
+    show:
+      in_chart: false
+      in_header: true
+    data_generator: |
+      let prices = entity.attributes.price_data.map(x => x.price);
+      return [[new Date().getTime(), Math.max(...prices)]];
 ```
-⚡ 177.55 öre/kWh
-```
+
+> Replace `sensor.elpriset_just_nu_se3_current_price` with your actual entity ID.
+> Find it under **Settings → Entities → search elprisetjustnu**.
 
 ---
 
