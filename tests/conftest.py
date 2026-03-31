@@ -60,6 +60,16 @@ SAMPLE_TOMORROW = make_day_data("2026-04-01", base_price=1.2)
 # --- Fixtures ---
 
 
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations):
+    """Enable custom integrations for all tests.
+
+    This fixture is provided by pytest-homeassistant-custom-component
+    and makes HA discover custom_components/ during tests.
+    """
+    yield
+
+
 @pytest.fixture
 def mock_api_today():
     """Return sample today data."""

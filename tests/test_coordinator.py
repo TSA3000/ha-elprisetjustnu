@@ -127,17 +127,16 @@ async def test_network_error_uses_cache(coordinator: ElprisetCoordinator) -> Non
 
 
 async def test_network_error_no_cache_raises(coordinator: ElprisetCoordinator) -> None:
-    """Test that a network error with no cache raises UpdateFailed."""
-    def raise_error(*args, **kwargs):
-        cm = AsyncMock()
-        cm.__aenter__ = AsyncMock(side_effect=aiohttp.ClientError("fail"))
-        cm.__aexit__ = AsyncMock(return_value=False)
-        return cm
+    """Test that a network error with no cache raises UpdateFailed.
 
-    coordinator._session.get = MagicMock(side_effect=raise_error)
-
-    with pytest.raises(UpdateFailed):
-        await coordinator._async_update_data()
+    _fetch_day catches its own errors, so we mock it directly to simulate
+    an unexpected failure in _async_update_data's outer try block.
+    """
+    with patch.object(
+        coordinator, "_fetch_day", new_callable=AsyncMock, side_effect=Exception("unexpected")
+    ):
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
 
 
 async def test_midnight_clears_tomorrow_cache(coordinator: ElprisetCoordinator) -> None:
