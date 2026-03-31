@@ -11,11 +11,12 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 
 ## ✨ Features
 
-- **Real-time Pricing (öre/kWh):** Current, highest, lowest and average price
-- **Quarter-Hourly Updates:** Full 96 daily price interval support
-- **Three Sensors:** Current · Highest · Lowest price today
-- **Device Grouping:** All sensors under one Device in Home Assistant
-- **UI Configuration:** No YAML required
+- **5 Sensors:** Current · Highest · Lowest · Average · Next price
+- **Real-time öre/kWh pricing** with 15-minute interval support (96 slots/day)
+- **Smart attributes** on Current Price: price trend, price level, all daily prices
+- **Error recovery:** keeps last known values if the API is temporarily unavailable
+- **Device grouping:** all sensors under one Device in Home Assistant
+- **UI configuration:** no YAML required
 
 ## 📥 Installation via HACS
 
@@ -36,13 +37,26 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 2. Search for **Elpriset Just Nu**
 3. Select your price area (SE1, SE2, SE3 or SE4) → **Submit**
 
-## 📊 Sensors (example: SE3)
+## 📊 Sensors (example: SE3 device)
 
-| Entity | Description |
+| Sensor | Description |
 |---|---|
-| `sensor.elprisetjustnu_se3_current_price` | Current price in öre/kWh |
-| `sensor.elprisetjustnu_se3_highest_price_today` | Daily high in öre/kWh |
-| `sensor.elprisetjustnu_se3_lowest_price_today` | Daily low in öre/kWh |
+| Current Price | Live price in öre/kWh |
+| Highest Price | Daily high in öre/kWh |
+| Lowest Price | Daily low in öre/kWh |
+| Average Price | Daily average in öre/kWh |
+| Next Price | Price for the next 15-min slot |
+
+### Attributes on Current Price
+
+| Attribute | Example value |
+|---|---|
+| `price_trend` | `rising` / `falling` / `stable` |
+| `price_level` | `cheap` / `normal` / `expensive` |
+| `next_price` | `132.5` |
+| `all_prices_today` | `[112.3, 118.1, ...]` |
+| `data_points` | `96` |
+| `price_area` | `SE3` |
 
 ## 🐛 Troubleshooting
 
