@@ -13,10 +13,10 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 
 ## ✨ Features
 
-- **5 sensors:** Current · Highest · Lowest · Average · Next price
+- **8 sensors:** today and tomorrow prices — current, highest, lowest, average, next
 - **Selectable unit:** öre/kWh or SEK/kWh — switch anytime via Configure
 - **15-minute intervals:** full 96-slot daily coverage
-- **Smart attributes** on Current Price: price trend, price level, all daily prices
+- **Smart attributes:** price trend, price level, tomorrow average, full price data
 - **ApexCharts support:** `price_data` attribute with timestamps ready for charts
 - **Error recovery:** keeps last known values if the API is temporarily unavailable
 - **Device grouping:** all sensors under one Device in Home Assistant
@@ -47,11 +47,13 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 4. Select your **unit** (öre/kWh or SEK/kWh)
 5. Click **Submit**
 
-> To change the unit later, click **Configure** on the integration card — no need to reinstall.
+> To change the unit or area later, click **Configure** on the integration card.
 
 ---
 
 ## 📊 Sensors (example: SE3 device)
+
+### Today
 
 | Sensor | Description |
 |---|---|
@@ -61,18 +63,33 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | Average Price | Daily average |
 | Next Price | Price for the next 15-min slot |
 
-### Attributes on Current Price sensor
+### Tomorrow
 
-| Attribute | Example value |
+| Sensor | Description |
 |---|---|
-| `price_trend` | `rising` / `falling` / `stable` |
-| `price_level` | `cheap` / `normal` / `expensive` |
-| `next_price` | `132.5` |
-| `price_data` | `[{"start": "2026-...", "price": 177.55}, ...]` |
-| `all_prices_today` | `[112.3, 118.1, ...]` |
-| `data_points` | `96` |
-| `price_area` | `SE3` |
-| `unit` | `öre/kWh` |
+| Highest Price Tomorrow | Tomorrow's high — available after ~13:00 CET |
+| Lowest Price Tomorrow | Tomorrow's low — available after ~13:00 CET |
+| Average Price Tomorrow | Tomorrow's average — available after ~13:00 CET |
+
+> Tomorrow sensors show `unknown` until the API publishes prices each afternoon.
+> They update automatically on the next 15-minute poll after becoming available.
+
+---
+
+## 🔖 Attributes on Current Price sensor
+
+| Attribute | Example value | Description |
+|---|---|---|
+| `price_trend` | `rising` | vs next 15-min slot |
+| `price_level` | `cheap` | relative to today's range |
+| `next_price` | `132.5` | next slot price |
+| `price_data` | `[{"start": "...", "price": 177.55}, ...]` | all slots with timestamps |
+| `all_prices_today` | `[112.3, 118.1, ...]` | flat list of today's prices |
+| `data_points` | `96` | number of slots fetched |
+| `price_area` | `SE3` | configured area |
+| `unit` | `öre/kWh` | selected unit |
+| `tomorrow_available` | `true` | whether tomorrow's prices are published |
+| `tomorrow_average` | `145.2` | tomorrow's average price |
 
 ---
 
@@ -166,6 +183,29 @@ series:
 
 > Replace `sensor.elpriset_just_nu_se3_current_price` with your actual entity ID.
 > Find it under **Settings → Entities → search elprisetjustnu**.
+
+---
+
+## 💡 Automation example
+
+Get notified when tomorrow's prices are published:
+
+```yaml
+automation:
+  - alias: "Notify when tomorrow prices are available"
+    trigger:
+      - platform: template
+        value_template: >
+          {{ state_attr('sensor.elpriset_just_nu_se3_current_price',
+             'tomorrow_available') == true }}
+    action:
+      - service: notify.mobile_app
+        data:
+          message: >
+            Tomorrow's average price:
+            {{ state_attr('sensor.elpriset_just_nu_se3_current_price',
+               'tomorrow_average') }} öre/kWh
+```
 
 ---
 
