@@ -1,5 +1,6 @@
 {
   "name": "Elpriset Just Nu",
+  "homeassistant": "2024.1.0",
   "render_readme": true,
   "country": "SE"
 }
