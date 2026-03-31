@@ -15,13 +15,14 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 
 - **8 sensors:** today and tomorrow prices — current, highest, lowest, average, next
 - **Selectable unit:** öre/kWh or SEK/kWh — switch anytime via Configure
+- **VAT support:** include or exclude moms with a configurable rate (default 25%)
 - **15-minute intervals:** full 96-slot daily coverage
 - **Smart attributes:** price trend, price level, tomorrow average, full price data
 - **ApexCharts support:** `price_data` attribute with today + tomorrow timestamps for seamless 48h charts
 - **Error recovery:** keeps last known values if the API is temporarily unavailable
 - **Device grouping:** all sensors under one Device in Home Assistant
 - **Diagnostics:** download debug info from the HA UI for easy troubleshooting
-- **UI configuration:** no YAML required
+- **UI configuration:** no YAML required — all settings changeable via Configure
 - **Zero external dependencies:** uses only Python built-ins and Home Assistant libraries
 
 ---
@@ -45,13 +46,21 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 
 1. **Settings** → **Devices & Services** → **Add Integration**
 2. Search for **Elpriset Just Nu**
-3. Select your **price area** (SE1, SE2, SE3 or SE4)
-4. Select your **unit** (öre/kWh or SEK/kWh)
-5. Click **Submit**
+3. Configure the following settings:
 
-> To change the unit or area later, click **Configure** on the integration card.
+| Setting | Default | Description |
+|---|---|---|
+| Price area | SE3 | Swedish electricity zone (SE1, SE2, SE3, SE4) |
+| Unit | öre/kWh | öre/kWh or SEK/kWh |
+| Include VAT (moms) | ✅ On | Apply VAT to all prices |
+| VAT rate (%) | 25 | Only used when Include VAT is on |
+| Show unit on sensors | ✅ On | Display unit label on sensor values |
 
-> Each price area can only be configured once. To change the area, use the Configure button or remove and re-add.
+4. Click **Submit**
+
+> To change any setting later, click **Configure** on the integration card — no need to remove and re-add.
+
+> Each price area can only be configured once.
 
 ---
 
@@ -92,10 +101,12 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | `data_points` | `96` | number of today's slots |
 | `price_area` | `SE3` | configured area |
 | `unit` | `öre/kWh` | selected unit |
+| `vat_percent` | `25` | configured VAT rate |
+| `includes_vat` | `true` | whether prices include VAT |
 | `tomorrow_available` | `true` | whether tomorrow's prices are published |
 | `tomorrow_average` | `145.2` | tomorrow's average price |
 
-> **Note:** `price_data` includes both today and tomorrow when available, making it easy to create charts spanning across midnight.
+> **Note:** `price_data` includes both today and tomorrow when available, making it easy to create charts spanning across midnight. All prices in attributes respect the VAT setting.
 
 ---
 
@@ -122,19 +133,48 @@ span:
 now:
   show: true
   label: Now
-  color: var(--primary-color)
+  color: "#ffffff"
 apex_config:
   chart:
-    height: 190px
+    height: 280px
   legend:
     showForSingleSeries: false
   plotOptions:
     bar:
-      borderRadius: 0
+      borderRadius: 1
+      columnWidth: "90%"
+  xaxis:
+    labels:
+      datetimeFormatter:
+        hour: HH:mm
+    axisTicks:
+      show: true
   yaxis:
     min: 0
     decimalsInFloat: 0
     forceNiceScale: true
+  tooltip:
+    x:
+      format: "ddd HH:mm"
+  annotations:
+    xaxis:
+      - x: new Date().setHours(0,0,0,0) + 86400000
+        borderColor: "rgba(255,255,255,0.15)"
+        strokeDashArray: 4
+        label:
+          text: Tomorrow
+          orientation: horizontal
+          borderWidth: 0
+          style:
+            background: "transparent"
+            color: "rgba(255,255,255,0.5)"
+            fontSize: 12px
+            fontWeight: 400
+            padding:
+              left: 6
+              right: 6
+              top: 2
+              bottom: 2
 series:
   - entity: sensor.elpriset_just_nu_se3_current_price
     name: " "
@@ -151,24 +191,35 @@ series:
       });
     color_threshold:
       - value: 0
-        color: "#8be9fd"
-      - value: 100
-        color: "#50fa7b"
+        color: "#64b5f6"
+      - value: 30
+        color: "#4fc3f7"
+      - value: 60
+        color: "#4dd0e1"
+      - value: 90
+        color: "#4db6ac"
+      - value: 120
+        color: "#66bb6a"
       - value: 150
-        color: "#8be978"
-      - value: 200
-        color: "#f8f872"
-      - value: 250
-        color: "#ffb86c"
+        color: "#9ccc65"
+      - value: 180
+        color: "#d4e157"
+      - value: 210
+        color: "#ffee58"
+      - value: 240
+        color: "#ffca28"
+      - value: 270
+        color: "#ffa726"
       - value: 300
-        color: "#ff9859"
+        color: "#ff7043"
       - value: 350
-        color: "#ff7846"
+        color: "#ef5350"
       - value: 400
-        color: "#ff5555"
+        color: "#e53935"
   - entity: sensor.elpriset_just_nu_se3_current_price
     name: Lowest
     unit: " öre/kWh"
+    float_precision: 1
     show:
       in_chart: false
       in_header: true
@@ -178,6 +229,7 @@ series:
   - entity: sensor.elpriset_just_nu_se3_current_price
     name: Highest
     unit: " öre/kWh"
+    float_precision: 1
     show:
       in_chart: false
       in_header: true
@@ -191,9 +243,9 @@ series:
 
 ---
 
-## 💡 Automation example
+## 💡 Automation examples
 
-Get notified when tomorrow's prices are published:
+### Notify when tomorrow's prices are published
 
 ```yaml
 automation:
@@ -210,6 +262,22 @@ automation:
             Tomorrow's average price:
             {{ state_attr('sensor.elpriset_just_nu_se3_current_price',
                'tomorrow_average') }} öre/kWh
+```
+
+### Turn off heater when price is expensive
+
+```yaml
+automation:
+  - alias: "Turn off heater on expensive prices"
+    trigger:
+      - platform: template
+        value_template: >
+          {{ state_attr('sensor.elpriset_just_nu_se3_current_price',
+             'price_level') == 'expensive' }}
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.heater
 ```
 
 ---
