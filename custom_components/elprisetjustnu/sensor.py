@@ -85,7 +85,7 @@ def _convert(sek_per_kwh: float, unit: str) -> float:
     """Convert SEK/kWh to the selected unit."""
     if unit == "öre/kWh":
         return round(sek_per_kwh * 100, 2)
-    return round(sek_per_kwh, 4)  # SEK/kWh — keep 4 decimals
+    return round(sek_per_kwh, 4)  # SEK/kWh
 
 
 class ElprisSensor(CoordinatorEntity, SensorEntity):
@@ -184,4 +184,11 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
             "price_level": _get_price_level(current, min(prices), max(prices)) if current else None,
             "all_prices_today": prices,
             "data_points": len(prices),
+            "price_data": [
+                {
+                    "start": b["time_start"],
+                    "price": _convert(b["SEK_per_kWh"], self._unit),
+                }
+                for b in self.coordinator.data
+            ] if self.coordinator.data else [],
         }
