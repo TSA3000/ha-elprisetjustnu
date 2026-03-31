@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Elpriset Just Nu",
+        "description": "Select your Swedish electricity price area.",
+        "data": {
+          "region": "Price area"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the Elpriset Just Nu API.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This price area is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Change price area",
+        "data": {
+          "region": "Price area"
+        }
+      }
+    }
+  }
+}
