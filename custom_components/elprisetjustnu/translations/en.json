@@ -3,9 +3,10 @@
     "step": {
       "user": {
         "title": "Set up Elpriset Just Nu",
-        "description": "Select your Swedish electricity price area.",
+        "description": "Select your Swedish electricity price area and preferred unit.",
         "data": {
-          "region": "Price area"
+          "region": "Price area",
+          "unit": "Unit"
         }
       }
     },
@@ -20,9 +21,10 @@
   "options": {
     "step": {
       "init": {
-        "title": "Change price area",
+        "title": "Change settings",
         "data": {
-          "region": "Price area"
+          "region": "Price area",
+          "unit": "Unit"
         }
       }
     }

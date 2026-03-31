@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import DOMAIN, CONF_REGION
+from .const import DOMAIN, CONF_REGION, CONF_UNIT
 from .coordinator import ElprisetCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,7 +22,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         key="current_price",
         name="Current Price",
         icon="mdi:lightning-bolt",
-        native_unit_of_measurement="öre/kWh",
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
     ),
@@ -30,7 +29,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         key="highest_price_today",
         name="Highest Price",
         icon="mdi:arrow-up-bold-circle-outline",
-        native_unit_of_measurement="öre/kWh",
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
     ),
@@ -38,7 +36,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         key="lowest_price_today",
         name="Lowest Price",
         icon="mdi:arrow-down-bold-circle-outline",
-        native_unit_of_measurement="öre/kWh",
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
     ),
@@ -46,7 +43,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         key="average_price_today",
         name="Average Price",
         icon="mdi:approximately-equal",
-        native_unit_of_measurement="öre/kWh",
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
     ),
@@ -54,7 +50,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         key="next_price",
         name="Next Price",
         icon="mdi:clock-fast",
-        native_unit_of_measurement="öre/kWh",
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
     ),
@@ -65,9 +60,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the Elpriset Just Nu sensor platform."""
     coordinator: ElprisetCoordinator = hass.data[DOMAIN][entry.entry_id]
     region = entry.options.get(CONF_REGION, entry.data.get(CONF_REGION))
+    unit = entry.options.get(CONF_UNIT, entry.data.get(CONF_UNIT, "öre/kWh"))
 
     entities = [
-        ElprisSensor(coordinator, region, description, entry.entry_id)
+        ElprisSensor(coordinator, region, unit, description, entry.entry_id)
         for description in SENSOR_TYPES
     ]
     async_add_entities(entities)
@@ -85,6 +81,13 @@ def _get_price_level(current: float, low: float, high: float) -> str:
     return "normal"
 
 
+def _convert(sek_per_kwh: float, unit: str) -> float:
+    """Convert SEK/kWh to the selected unit."""
+    if unit == "öre/kWh":
+        return round(sek_per_kwh * 100, 2)
+    return round(sek_per_kwh, 4)  # SEK/kWh — keep 4 decimals
+
+
 class ElprisSensor(CoordinatorEntity, SensorEntity):
     """Representation of an individual Elpris Sensor."""
 
@@ -92,14 +95,17 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         self,
         coordinator: ElprisetCoordinator,
         region: str,
+        unit: str,
         description: SensorEntityDescription,
         entry_id: str,
     ):
         super().__init__(coordinator)
         self.entity_description = description
         self.region = region
+        self._unit = unit
         self._attr_unique_id = f"{entry_id}_{region.lower()}_{description.key}"
         self._attr_has_entity_name = True
+        self._attr_native_unit_of_measurement = unit
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
             name=f"Elpriset Just Nu ({region})",
@@ -108,10 +114,10 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
             configuration_url="https://www.elprisetjustnu.se/elpris-api",
         )
 
-    def _prices_in_ore(self) -> list[float]:
+    def _prices_converted(self) -> list[float]:
         if not self.coordinator.data:
             return []
-        return [round(b["SEK_per_kWh"] * 100, 2) for b in self.coordinator.data]
+        return [_convert(b["SEK_per_kWh"], self._unit) for b in self.coordinator.data]
 
     def _current_block(self):
         if not self.coordinator.data:
@@ -136,42 +142,43 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        prices = self._prices_in_ore()
+        prices = self._prices_converted()
         if not prices:
             return None
         key = self.entity_description.key
         if key == "highest_price_today":
-            return round(max(prices), 2)
+            return round(max(prices), 4)
         if key == "lowest_price_today":
-            return round(min(prices), 2)
+            return round(min(prices), 4)
         if key == "average_price_today":
-            return round(sum(prices) / len(prices), 2)
+            return round(sum(prices) / len(prices), 4)
         if key == "current_price":
             block = self._current_block()
-            return round(block["SEK_per_kWh"] * 100, 2) if block else None
+            return _convert(block["SEK_per_kWh"], self._unit) if block else None
         if key == "next_price":
             block = self._next_block()
-            return round(block["SEK_per_kWh"] * 100, 2) if block else None
+            return _convert(block["SEK_per_kWh"], self._unit) if block else None
         return None
 
     @property
     def extra_state_attributes(self):
         if self.entity_description.key != "current_price":
             return {}
-        prices = self._prices_in_ore()
+        prices = self._prices_converted()
         if not prices:
             return {}
         current_block = self._current_block()
         next_block = self._next_block()
-        current = round(current_block["SEK_per_kWh"] * 100, 2) if current_block else None
-        next_val = round(next_block["SEK_per_kWh"] * 100, 2) if next_block else None
+        current = _convert(current_block["SEK_per_kWh"], self._unit) if current_block else None
+        next_val = _convert(next_block["SEK_per_kWh"], self._unit) if next_block else None
         trend = "unknown"
         if current is not None and next_val is not None:
+            threshold = 1 if self._unit == "öre/kWh" else 0.01
             diff = next_val - current
-            trend = "rising" if diff > 1 else "falling" if diff < -1 else "stable"
+            trend = "rising" if diff > threshold else "falling" if diff < -threshold else "stable"
         return {
             "price_area": self.region,
-            "currency": "öre/kWh",
+            "unit": self._unit,
             "price_trend": trend,
             "next_price": next_val,
             "price_level": _get_price_level(current, min(prices), max(prices)) if current else None,
