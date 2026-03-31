@@ -8,9 +8,27 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.elprisetjustnu.const import CONF_REGION, CONF_UNIT, CONF_VAT, DOMAIN
+from custom_components.elprisetjustnu.const import (
+    CONF_REGION,
+    CONF_UNIT,
+    CONF_INCLUDE_VAT,
+    CONF_VAT,
+    CONF_SHOW_UNIT,
+    DOMAIN,
+)
 
 from .conftest import MOCK_CONFIG_DATA
+
+
+def _input(region="SE3", unit="öre/kWh", include_vat=True, vat=25.0, show_unit=True):
+    """Build a complete user_input dict."""
+    return {
+        CONF_REGION: region,
+        CONF_UNIT: unit,
+        CONF_INCLUDE_VAT: include_vat,
+        CONF_VAT: vat,
+        CONF_SHOW_UNIT: show_unit,
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -52,7 +70,6 @@ async def test_user_flow_default_values(hass: HomeAssistant) -> None:
 
 async def test_duplicate_entry_aborts(hass: HomeAssistant) -> None:
     """Test that adding the same region twice is blocked."""
-    # First entry succeeds
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -62,7 +79,6 @@ async def test_duplicate_entry_aborts(hass: HomeAssistant) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
-    # Second entry with same region aborts
     result2 = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -76,23 +92,21 @@ async def test_duplicate_entry_aborts(hass: HomeAssistant) -> None:
 
 async def test_different_regions_allowed(hass: HomeAssistant) -> None:
     """Test that different regions can coexist."""
-    # SE3
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={CONF_REGION: "SE3", CONF_UNIT: "öre/kWh", CONF_VAT: 25},
+        user_input=_input(region="SE3"),
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
-    # SE1 — should also succeed
     result2 = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result2 = await hass.config_entries.flow.async_configure(
         result2["flow_id"],
-        user_input={CONF_REGION: "SE1", CONF_UNIT: "SEK/kWh", CONF_VAT: 0},
+        user_input=_input(region="SE1", unit="SEK/kWh", vat=0.0),
     )
     assert result2["type"] is FlowResultType.CREATE_ENTRY
 
@@ -104,7 +118,33 @@ async def test_sek_unit_option(hass: HomeAssistant) -> None:
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={CONF_REGION: "SE4", CONF_UNIT: "SEK/kWh", CONF_VAT: 25},
+        user_input=_input(region="SE4", unit="SEK/kWh"),
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_UNIT] == "SEK/kWh"
+
+
+async def test_vat_disabled(hass: HomeAssistant) -> None:
+    """Test creating an entry with VAT disabled."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input=_input(region="SE2", include_vat=False),
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_INCLUDE_VAT] is False
+
+
+async def test_unit_hidden(hass: HomeAssistant) -> None:
+    """Test creating an entry with unit hidden."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input=_input(region="SE4", show_unit=False),
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_SHOW_UNIT] is False

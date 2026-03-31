@@ -7,7 +7,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from custom_components.elprisetjustnu.const import CONF_REGION, CONF_UNIT, CONF_VAT, DEFAULT_VAT
+from custom_components.elprisetjustnu.const import (
+    CONF_REGION,
+    CONF_UNIT,
+    CONF_INCLUDE_VAT,
+    CONF_VAT,
+    CONF_SHOW_UNIT,
+    DEFAULT_VAT,
+)
 
 # --- Constants ---
 
@@ -16,7 +23,9 @@ CET = timezone(timedelta(hours=1))
 MOCK_CONFIG_DATA = {
     CONF_REGION: "SE3",
     CONF_UNIT: "öre/kWh",
-    CONF_VAT: DEFAULT_VAT,
+    CONF_INCLUDE_VAT: True,
+    CONF_VAT: float(DEFAULT_VAT),
+    CONF_SHOW_UNIT: True,
 }
 
 
