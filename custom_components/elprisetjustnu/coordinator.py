@@ -11,10 +11,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class ElprisetCoordinator(DataUpdateCoordinator):
-    """Coordinator that fetches price data from the Elpriset Just Nu API."""
+    """Fetches today's and tomorrow's price data from the Elpriset Just Nu API."""
 
     def __init__(self, hass, region: str) -> None:
-        """Initialise the coordinator."""
         super().__init__(
             hass,
             _LOGGER,
@@ -23,42 +22,66 @@ class ElprisetCoordinator(DataUpdateCoordinator):
         )
         self.region = region
         self._session = async_get_clientsession(hass)
-        self._last_known_data: list = []
+        self._last_known_today: list = []
+        self._last_known_tomorrow: list = []
 
-    async def _async_update_data(self) -> list:
-        """Fetch today's price data from the API."""
-        now = datetime.now()
+    async def _fetch_day(self, date: datetime) -> list:
+        """Fetch price data for a specific date. Returns [] if not available yet."""
         url = (
             f"https://www.elprisetjustnu.se/api/v1/prices/"
-            f"{now.strftime('%Y')}/{now.strftime('%m')}-{now.strftime('%d')}"
+            f"{date.strftime('%Y')}/{date.strftime('%m')}-{date.strftime('%d')}"
             f"_{self.region}.json"
         )
-
         try:
             async with self._session.get(url, timeout=10) as response:
                 if response.status == 404:
-                    _LOGGER.debug(
-                        "Elpriset API: prices not yet published for today (404) — "
-                        "using last known data"
-                    )
-                    return self._last_known_data or []
-
+                    return []
                 response.raise_for_status()
-                data = await response.json()
-                self._last_known_data = data
-                _LOGGER.debug(
-                    "Elpriset API: fetched %d price slots for %s",
-                    len(data),
-                    self.region,
-                )
-                return data
+                return await response.json()
+        except Exception as err:
+            _LOGGER.warning("Elpriset API error fetching %s: %s", url, err)
+            return []
+
+    async def _async_update_data(self) -> dict:
+        """Fetch today's and tomorrow's prices."""
+        now = datetime.now()
+        tomorrow = now + timedelta(days=1)
+
+        try:
+            today_data = await self._fetch_day(now)
+            tomorrow_data = await self._fetch_day(tomorrow)
+
+            # Keep last known good data for today
+            if today_data:
+                self._last_known_today = today_data
+            else:
+                today_data = self._last_known_today
+
+            # Tomorrow data is only available after ~13:00 CET — empty until then
+            if tomorrow_data:
+                self._last_known_tomorrow = tomorrow_data
+
+            _LOGGER.debug(
+                "Elpriset %s — today: %d slots, tomorrow: %d slots",
+                self.region,
+                len(today_data),
+                len(tomorrow_data),
+            )
+
+            return {
+                "today": today_data,
+                "tomorrow": tomorrow_data,
+            }
 
         except Exception as err:
-            if self._last_known_data:
+            if self._last_known_today:
                 _LOGGER.warning(
-                    "Elpriset API error, keeping last known data: %s", err
+                    "Elpriset API error, using last known data: %s", err
                 )
-                return self._last_known_data
+                return {
+                    "today": self._last_known_today,
+                    "tomorrow": self._last_known_tomorrow,
+                }
             raise UpdateFailed(
                 f"Error fetching Elpriset data for {self.region}: {err}"
             ) from err
