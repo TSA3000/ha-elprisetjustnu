@@ -7,7 +7,6 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
-    SensorStateClass,
 )
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -26,7 +25,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         name="Current Price",
         icon="mdi:lightning-bolt",
         device_class=SensorDeviceClass.MONETARY,
-        state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
     ),
     SensorEntityDescription(
