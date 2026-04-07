@@ -33,6 +33,10 @@ class ElprisetCoordinator(DataUpdateCoordinator):
         self._last_known_today: list = []
         self._last_known_tomorrow: list = []
         self._last_date = None
+        # Last week cache — only needs to be fetched once per day
+        self._last_week_today: list = []
+        self._last_week_tomorrow: list = []
+        self._last_week_fetched_date = None
 
     async def _fetch_day(self, year: int, month: int, day: int) -> list:
         """Fetch price data for a specific date. Returns [] if not available yet."""
@@ -51,13 +55,12 @@ class ElprisetCoordinator(DataUpdateCoordinator):
             return []
 
     async def _async_update_data(self) -> dict:
-        """Fetch today's and tomorrow's prices."""
+        """Fetch today's, tomorrow's, and last week's prices."""
         now = dt_util.now()
         today = now.date()
         tomorrow = today + timedelta(days=1)
 
         # Clear stale tomorrow cache when the date rolls over.
-        # Yesterday's "tomorrow" data is now "today" — the API will serve it fresh.
         if self._last_date is not None and today != self._last_date:
             _LOGGER.debug("Date changed from %s to %s — clearing tomorrow cache", self._last_date, today)
             self._last_known_tomorrow = []
@@ -73,20 +76,42 @@ class ElprisetCoordinator(DataUpdateCoordinator):
             else:
                 today_data = self._last_known_today
 
-            # Tomorrow data is only available after ~13:00 CET — empty until then
+            # Tomorrow data is only available after ~13:00 CET
             if tomorrow_data:
                 self._last_known_tomorrow = tomorrow_data
+
+            # Fetch last week's data (same weekday) — cache per day
+            if self._last_week_fetched_date != today:
+                last_week_today = today - timedelta(days=7)
+                last_week_tomorrow = tomorrow - timedelta(days=7)
+
+                self._last_week_today = await self._fetch_day(
+                    last_week_today.year, last_week_today.month, last_week_today.day
+                )
+                self._last_week_tomorrow = await self._fetch_day(
+                    last_week_tomorrow.year, last_week_tomorrow.month, last_week_tomorrow.day
+                )
+                self._last_week_fetched_date = today
+
+                _LOGGER.debug(
+                    "Elpriset %s — last week: today=%d slots, tomorrow=%d slots",
+                    self.region,
+                    len(self._last_week_today),
+                    len(self._last_week_tomorrow),
+                )
 
             _LOGGER.debug(
                 "Elpriset %s — today: %d slots, tomorrow: %d slots",
                 self.region,
                 len(today_data),
-                len(tomorrow_data),
+                len(self._last_known_tomorrow),
             )
 
             return {
                 "today": today_data,
                 "tomorrow": self._last_known_tomorrow,
+                "last_week_today": self._last_week_today,
+                "last_week_tomorrow": self._last_week_tomorrow,
             }
 
         except Exception as err:
@@ -97,6 +122,8 @@ class ElprisetCoordinator(DataUpdateCoordinator):
                 return {
                     "today": self._last_known_today,
                     "tomorrow": self._last_known_tomorrow,
+                    "last_week_today": self._last_week_today,
+                    "last_week_tomorrow": self._last_week_tomorrow,
                 }
             raise UpdateFailed(
                 f"Error fetching Elpriset data for {self.region}: {err}"

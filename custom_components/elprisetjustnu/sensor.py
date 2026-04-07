@@ -1,7 +1,7 @@
 """Sensor platform for Elpriset Just Nu."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -170,6 +170,16 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
             return []
         return self.coordinator.data.get("tomorrow", [])
 
+    def _last_week_today(self) -> list:
+        if not self.coordinator.data:
+            return []
+        return self.coordinator.data.get("last_week_today", [])
+
+    def _last_week_tomorrow(self) -> list:
+        if not self.coordinator.data:
+            return []
+        return self.coordinator.data.get("last_week_tomorrow", [])
+
     def _prices_converted(self, data: list) -> list[float]:
         return [_convert(b["SEK_per_kWh"], self._unit, self._vat) for b in data]
 
@@ -275,6 +285,20 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
             for b in combined_blocks
         ]
 
+        # Last week same weekday — timestamps shifted +7 days to align on chart
+        lw_today = self._last_week_today()
+        lw_tomorrow = self._last_week_tomorrow()
+        lw_combined = lw_today + lw_tomorrow
+        price_data_last_week = [
+            {
+                "start": (
+                    datetime.fromisoformat(b["time_start"]) + timedelta(days=7)
+                ).isoformat(),
+                "price": _convert(b["SEK_per_kWh"], self._unit, self._vat),
+            }
+            for b in lw_combined
+        ]
+
         return {
             "price_area": self.region,
             "unit": self._unit,
@@ -290,6 +314,7 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
             "all_prices_today": prices,
             "data_points": len(prices),
             "price_data": price_data,
+            "price_data_last_week": price_data_last_week,
             "tomorrow_available": len(tomorrow_prices) > 0,
             "tomorrow_average": (
                 round(sum(tomorrow_prices) / len(tomorrow_prices), 2)

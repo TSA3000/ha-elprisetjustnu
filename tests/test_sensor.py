@@ -15,7 +15,7 @@ from custom_components.elprisetjustnu.sensor import (
     _find_block,
 )
 
-from .conftest import SAMPLE_TODAY, SAMPLE_TOMORROW, CET
+from .conftest import SAMPLE_TODAY, SAMPLE_TOMORROW, SAMPLE_LAST_WEEK_TODAY, SAMPLE_LAST_WEEK_TOMORROW, CET
 
 
 # ---------------------------------------------------------------------------
@@ -109,19 +109,21 @@ def test_find_block_empty_list():
 # ---------------------------------------------------------------------------
 
 
-def _make_coordinator_mock(today=None, tomorrow=None):
+def _make_coordinator_mock(today=None, tomorrow=None, lw_today=None, lw_tomorrow=None):
     """Create a mock coordinator with data."""
     coordinator = MagicMock()
     coordinator.data = {
         "today": today or [],
         "tomorrow": tomorrow or [],
+        "last_week_today": lw_today or [],
+        "last_week_tomorrow": lw_tomorrow or [],
     }
     return coordinator
 
 
-def _make_sensor(key: str, unit: str = "öre/kWh", vat: float = 0, today=None, tomorrow=None):
+def _make_sensor(key: str, unit: str = "öre/kWh", vat: float = 0, today=None, tomorrow=None, lw_today=None, lw_tomorrow=None):
     """Create a sensor with a mock coordinator for testing."""
-    coord = _make_coordinator_mock(today, tomorrow)
+    coord = _make_coordinator_mock(today, tomorrow, lw_today, lw_tomorrow)
     desc = next(d for d in SENSOR_TYPES if d.key == key)
 
     sensor = ElprisSensor.__new__(ElprisSensor)
@@ -392,3 +394,58 @@ class TestVATApplied:
 
         assert high_no_vat is not None
         assert high_with_vat > high_no_vat
+
+
+class TestLastWeekData:
+    """Tests for last week price data attributes."""
+
+    def test_last_week_data_present(self):
+        now = datetime(2026, 3, 31, 10, 7, tzinfo=CET)
+        with patch(
+            "custom_components.elprisetjustnu.sensor.dt_util"
+        ) as mock_dt:
+            mock_dt.now.return_value = now
+
+            sensor = _make_sensor(
+                "current_price",
+                today=SAMPLE_TODAY,
+                tomorrow=SAMPLE_TOMORROW,
+                lw_today=SAMPLE_LAST_WEEK_TODAY,
+                lw_tomorrow=SAMPLE_LAST_WEEK_TOMORROW,
+            )
+            attrs = sensor.extra_state_attributes
+
+        assert "price_data_last_week" in attrs
+        # Last week today (96) + last week tomorrow (96) = 192
+        assert len(attrs["price_data_last_week"]) == 192
+
+    def test_last_week_timestamps_shifted(self):
+        """Last week timestamps should be shifted +7 days to align on chart."""
+        now = datetime(2026, 3, 31, 10, 7, tzinfo=CET)
+        with patch(
+            "custom_components.elprisetjustnu.sensor.dt_util"
+        ) as mock_dt:
+            mock_dt.now.return_value = now
+
+            sensor = _make_sensor(
+                "current_price",
+                today=SAMPLE_TODAY,
+                lw_today=SAMPLE_LAST_WEEK_TODAY,
+            )
+            attrs = sensor.extra_state_attributes
+
+        # First last week slot was 2026-03-24, shifted should be 2026-03-31
+        first_lw = attrs["price_data_last_week"][0]["start"]
+        assert "2026-03-31" in first_lw
+
+    def test_last_week_empty_when_no_data(self):
+        now = datetime(2026, 3, 31, 10, 7, tzinfo=CET)
+        with patch(
+            "custom_components.elprisetjustnu.sensor.dt_util"
+        ) as mock_dt:
+            mock_dt.now.return_value = now
+
+            sensor = _make_sensor("current_price", today=SAMPLE_TODAY)
+            attrs = sensor.extra_state_attributes
+
+        assert attrs["price_data_last_week"] == []

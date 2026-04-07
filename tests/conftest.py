@@ -65,6 +65,8 @@ def make_day_data(date_str: str = "2026-03-31", base_price: float = 1.0, slots: 
 
 SAMPLE_TODAY = make_day_data("2026-03-31", base_price=1.0)
 SAMPLE_TOMORROW = make_day_data("2026-04-01", base_price=1.2)
+SAMPLE_LAST_WEEK_TODAY = make_day_data("2026-03-24", base_price=0.9)
+SAMPLE_LAST_WEEK_TOMORROW = make_day_data("2026-03-25", base_price=1.1)
 
 
 # --- Fixtures ---

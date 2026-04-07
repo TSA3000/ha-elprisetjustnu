@@ -16,9 +16,10 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 - **8 sensors:** today and tomorrow prices — current, highest, lowest, average, next
 - **Selectable unit:** öre/kWh or SEK/kWh — switch anytime via Configure
 - **VAT support:** include or exclude moms with a configurable rate (default 25%)
+- **Last week comparison:** fetches last week's same weekday for chart overlay
 - **15-minute intervals:** full 96-slot daily coverage
 - **Smart attributes:** price trend, price level, tomorrow average, full price data
-- **ApexCharts support:** `price_data` attribute with today + tomorrow timestamps for seamless 48h charts
+- **ApexCharts support:** `price_data` and `price_data_last_week` for mixed charts
 - **Error recovery:** keeps last known values if the API is temporarily unavailable
 - **Device grouping:** all sensors under one Device in Home Assistant
 - **Diagnostics:** download debug info from the HA UI for easy troubleshooting
@@ -97,6 +98,7 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | `price_level` | `cheap` | relative to today's range |
 | `next_price` | `132.5` | next slot price |
 | `price_data` | `[{"start": "...", "price": 177.55}, ...]` | today + tomorrow slots with timestamps |
+| `price_data_last_week` | `[{"start": "...", "price": 95.2}, ...]` | last week same weekday, timestamps shifted +7 days |
 | `all_prices_today` | `[112.3, 118.1, ...]` | flat list of today's prices |
 | `data_points` | `96` | number of today's slots |
 | `price_area` | `SE3` | configured area |
@@ -106,17 +108,17 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | `tomorrow_available` | `true` | whether tomorrow's prices are published |
 | `tomorrow_average` | `145.2` | tomorrow's average price |
 
-> **Note:** `price_data` includes both today and tomorrow when available, making it easy to create charts spanning across midnight. All prices in attributes respect the VAT setting.
+> **Note:** `price_data` includes both today and tomorrow when available. `price_data_last_week` contains the same weekday from last week with timestamps shifted +7 days, so they align perfectly when overlaid on a chart. All prices respect the VAT setting.
 
 ---
 
-## 📈 Dashboard Chart
+## 📈 Dashboard Charts
 
 Requires [ApexCharts Card](https://github.com/RomRider/apexcharts-card) from HACS.
 
-![Electricity price chart SE3](images/apexcharts_ex01.png)
+### Simple price chart
 
-Add this to your dashboard via **Edit → Add Card → Manual**:
+![Electricity price chart SE3](images/apexcharts_ex01.png)
 
 ```yaml
 type: custom:apexcharts-card
@@ -216,6 +218,132 @@ series:
         color: "#ef5350"
       - value: 400
         color: "#e53935"
+  - entity: sensor.elpriset_just_nu_se3_current_price
+    name: Lowest
+    unit: " öre/kWh"
+    float_precision: 1
+    show:
+      in_chart: false
+      in_header: true
+    data_generator: |
+      let prices = entity.attributes.price_data.map(x => x.price);
+      return [[new Date().getTime(), Math.min(...prices)]];
+  - entity: sensor.elpriset_just_nu_se3_current_price
+    name: Highest
+    unit: " öre/kWh"
+    float_precision: 1
+    show:
+      in_chart: false
+      in_header: true
+    data_generator: |
+      let prices = entity.attributes.price_data.map(x => x.price);
+      return [[new Date().getTime(), Math.max(...prices)]];
+```
+
+### Mixed chart: Today vs Last Week
+
+Shows today's prices as colored bars with last week's same weekday as a line overlay on a second Y-axis.
+
+```yaml
+type: custom:apexcharts-card
+experimental:
+  color_threshold: true
+header:
+  show: true
+  title: Electricity Prices SE3 — vs Last Week
+  show_states: true
+  colorize_states: true
+graph_span: 48h
+span:
+  start: day
+now:
+  show: true
+  label: Now
+  color: "#ffffff"
+apex_config:
+  chart:
+    height: 280px
+  legend:
+    show: true
+  plotOptions:
+    bar:
+      borderRadius: 1
+      columnWidth: "90%"
+  xaxis:
+    labels:
+      datetimeFormatter:
+        hour: HH:mm
+  yaxis:
+    - seriesName: " "
+      min: 0
+      decimalsInFloat: 0
+      forceNiceScale: true
+    - seriesName: Last week
+      opposite: true
+      min: 0
+      decimalsInFloat: 0
+      forceNiceScale: true
+  tooltip:
+    x:
+      format: "ddd HH:mm"
+  annotations:
+    xaxis:
+      - x: new Date().setHours(0,0,0,0) + 86400000
+        borderColor: "rgba(255,255,255,0.15)"
+        strokeDashArray: 4
+        label:
+          text: Tomorrow
+          orientation: horizontal
+          borderWidth: 0
+          style:
+            background: "transparent"
+            color: "rgba(255,255,255,0.5)"
+            fontSize: 12px
+            fontWeight: 400
+series:
+  - entity: sensor.elpriset_just_nu_se3_current_price
+    name: " "
+    unit: " öre/kWh"
+    type: column
+    float_precision: 1
+    show:
+      extremas: true
+      in_header: before_now
+      header_color_threshold: true
+    data_generator: |
+      return entity.attributes.price_data.map((item) => {
+        return [new Date(item["start"]).getTime(), item["price"]];
+      });
+    color_threshold:
+      - value: 0
+        color: "#64b5f6"
+      - value: 60
+        color: "#4dd0e1"
+      - value: 120
+        color: "#66bb6a"
+      - value: 180
+        color: "#d4e157"
+      - value: 240
+        color: "#ffca28"
+      - value: 300
+        color: "#ff7043"
+      - value: 400
+        color: "#e53935"
+  - entity: sensor.elpriset_just_nu_se3_current_price
+    name: Last week
+    unit: " öre/kWh"
+    type: line
+    float_precision: 1
+    color: "rgba(255,255,255,0.4)"
+    stroke_width: 2
+    yaxis_id: Last week
+    show:
+      in_header: false
+      extremas: false
+    data_generator: |
+      return (entity.attributes.price_data_last_week || []).map((item) => {
+        return [new Date(item["start"]).getTime(), item["price"]];
+      });
   - entity: sensor.elpriset_just_nu_se3_current_price
     name: Lowest
     unit: " öre/kWh"

@@ -33,6 +33,17 @@ def _mock_response(status: int = 200, json_data: list | None = None):
     return cm
 
 
+def _responses_4(today_s=200, today_d=None, tomorrow_s=200, tomorrow_d=None,
+                  lw_today_s=200, lw_today_d=None, lw_tomorrow_s=200, lw_tomorrow_d=None):
+    """Build a 4-response list for a first fetch (today, tomorrow, lw_today, lw_tomorrow)."""
+    return [
+        _mock_response(today_s, today_d),
+        _mock_response(tomorrow_s, tomorrow_d),
+        _mock_response(lw_today_s, lw_today_d),
+        _mock_response(lw_tomorrow_s, lw_tomorrow_d),
+    ]
+
+
 @pytest.fixture
 def mock_now():
     """Patch dt_util.now to return a fixed time: 2026-03-31 10:07 CET."""
@@ -59,24 +70,24 @@ def coordinator(hass: HomeAssistant, mock_now):
 
 async def test_fetch_today_and_tomorrow(coordinator: ElprisetCoordinator) -> None:
     """Test successful fetch of today and tomorrow data."""
-    coordinator._session.get = MagicMock(side_effect=[
-        _mock_response(200, SAMPLE_TODAY),
-        _mock_response(200, SAMPLE_TOMORROW),
-    ])
+    coordinator._session.get = MagicMock(side_effect=_responses_4(
+        today_d=SAMPLE_TODAY, tomorrow_d=SAMPLE_TOMORROW,
+    ))
 
     data = await coordinator._async_update_data()
 
     assert len(data["today"]) == 96
     assert len(data["tomorrow"]) == 96
     assert data["today"][0]["SEK_per_kWh"] == SAMPLE_TODAY[0]["SEK_per_kWh"]
+    assert "last_week_today" in data
+    assert "last_week_tomorrow" in data
 
 
 async def test_tomorrow_404_returns_empty(coordinator: ElprisetCoordinator) -> None:
     """Test that a 404 for tomorrow returns empty list (not yet published)."""
-    coordinator._session.get = MagicMock(side_effect=[
-        _mock_response(200, SAMPLE_TODAY),
-        _mock_response(404),
-    ])
+    coordinator._session.get = MagicMock(side_effect=_responses_4(
+        today_d=SAMPLE_TODAY, tomorrow_s=404,
+    ))
 
     data = await coordinator._async_update_data()
 
@@ -86,15 +97,14 @@ async def test_tomorrow_404_returns_empty(coordinator: ElprisetCoordinator) -> N
 
 async def test_today_404_uses_cache(coordinator: ElprisetCoordinator) -> None:
     """Test that if today returns 404, last known data is used."""
-    # First successful fetch
-    coordinator._session.get = MagicMock(side_effect=[
-        _mock_response(200, SAMPLE_TODAY),
-        _mock_response(404),
-    ])
+    # First successful fetch (4 calls: today, tomorrow, lw_today, lw_tomorrow)
+    coordinator._session.get = MagicMock(side_effect=_responses_4(
+        today_d=SAMPLE_TODAY, tomorrow_s=404,
+    ))
     data1 = await coordinator._async_update_data()
     assert len(data1["today"]) == 96
 
-    # Second fetch — today returns empty
+    # Second fetch — today returns empty, last week already cached (only 2 calls)
     coordinator._session.get = MagicMock(side_effect=[
         _mock_response(404),
         _mock_response(404),
@@ -106,10 +116,9 @@ async def test_today_404_uses_cache(coordinator: ElprisetCoordinator) -> None:
 async def test_network_error_uses_cache(coordinator: ElprisetCoordinator) -> None:
     """Test that network errors fall back to cached data."""
     # First successful fetch
-    coordinator._session.get = MagicMock(side_effect=[
-        _mock_response(200, SAMPLE_TODAY),
-        _mock_response(200, SAMPLE_TOMORROW),
-    ])
+    coordinator._session.get = MagicMock(side_effect=_responses_4(
+        today_d=SAMPLE_TODAY, tomorrow_d=SAMPLE_TOMORROW,
+    ))
     await coordinator._async_update_data()
 
     # Network error on second fetch
@@ -142,10 +151,9 @@ async def test_network_error_no_cache_raises(coordinator: ElprisetCoordinator) -
 async def test_midnight_clears_tomorrow_cache(coordinator: ElprisetCoordinator) -> None:
     """Test that stale tomorrow data is cleared when the date rolls over."""
     # Fetch on March 31
-    coordinator._session.get = MagicMock(side_effect=[
-        _mock_response(200, SAMPLE_TODAY),
-        _mock_response(200, SAMPLE_TOMORROW),
-    ])
+    coordinator._session.get = MagicMock(side_effect=_responses_4(
+        today_d=SAMPLE_TODAY, tomorrow_d=SAMPLE_TOMORROW,
+    ))
     data = await coordinator._async_update_data()
     assert len(data["tomorrow"]) == 96
 
@@ -156,14 +164,13 @@ async def test_midnight_clears_tomorrow_cache(coordinator: ElprisetCoordinator) 
     ) as mock_dt:
         mock_dt.now.return_value = new_now
 
-        # Tomorrow (April 2) is not yet published
-        coordinator._session.get = MagicMock(side_effect=[
-            _mock_response(200, SAMPLE_TODAY),  # April 1 data
-            _mock_response(404),                # April 2 not yet available
-        ])
+        # 4 calls: April 1 data, April 2 (404), last week March 25, March 26
+        coordinator._session.get = MagicMock(side_effect=_responses_4(
+            today_d=SAMPLE_TODAY, tomorrow_s=404,
+        ))
         data = await coordinator._async_update_data()
 
-    # Tomorrow cache should have been cleared at midnight, not stale March data
+    # Tomorrow cache should have been cleared at midnight
     assert data["tomorrow"] == []
 
 
@@ -178,6 +185,30 @@ async def test_api_url_format(coordinator: ElprisetCoordinator) -> None:
     coordinator._session.get = MagicMock(side_effect=capture_get)
     await coordinator._async_update_data()
 
-    assert len(calls) == 2
+    # 4 calls: today, tomorrow, last_week_today, last_week_tomorrow
+    assert len(calls) == 4
     assert "2026/03-31_SE3.json" in calls[0]
     assert "2026/04-01_SE3.json" in calls[1]
+    assert "2026/03-24_SE3.json" in calls[2]
+    assert "2026/03-25_SE3.json" in calls[3]
+
+
+async def test_last_week_cached_per_day(coordinator: ElprisetCoordinator) -> None:
+    """Test that last week data is only fetched once per day."""
+    calls = []
+
+    def capture_get(url, **kwargs):
+        calls.append(url)
+        return _mock_response(200, [])
+
+    coordinator._session.get = MagicMock(side_effect=capture_get)
+
+    # First fetch — 4 calls
+    await coordinator._async_update_data()
+    assert len(calls) == 4
+
+    # Second fetch same day — only 2 calls (last week cached)
+    calls.clear()
+    coordinator._session.get = MagicMock(side_effect=capture_get)
+    await coordinator._async_update_data()
+    assert len(calls) == 2
