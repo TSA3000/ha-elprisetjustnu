@@ -116,7 +116,11 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 
 Requires [ApexCharts Card](https://github.com/RomRider/apexcharts-card) from HACS.
 
+Add charts to your dashboard via **Edit → Add Card → Manual**.
+
 ### Simple price chart
+
+Today and tomorrow prices as color-coded bars with a "Now" marker and tomorrow divider.
 
 ![Electricity price chart SE3](images/apexcharts_ex01.png)
 
@@ -242,7 +246,9 @@ series:
 
 ### Mixed chart: Today vs Last Week
 
-Shows today's prices as colored bars with last week's same weekday as a line overlay on a second Y-axis.
+Today's prices as colored bars with last week's same weekday as a white line overlay on a second Y-axis. Instantly see how prices compare to the same day last week.
+
+![Electricity price chart SE3 vs last week](images/apexcharts_ex02.png)
 
 ```yaml
 type: custom:apexcharts-card
