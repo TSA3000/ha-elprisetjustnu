@@ -107,7 +107,7 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | `tomorrow_available` | `true` | whether tomorrow's prices are published |
 | `tomorrow_average` | `145.2` | tomorrow's average price |
 
-> **Note:** `price_data` and `price_data_last_week` use the compact `[timestamp_ms, price]` format — native to ApexCharts. This keeps attributes well under HA's 16KB limit. All prices respect the VAT setting.
+> **Note:** `price_data` and `price_data_last_week` use the compact `[timestamp_ms, price]` format — native to ApexCharts. This keeps attributes well under HA's 16KB recorder limit. All prices respect the VAT setting.
 
 ---
 
@@ -217,6 +217,25 @@ series:
         color: "#ff7043"
       - value: 350
         color: "#ef5350"
+      - value: 400
+        color: "#e53935"
+  - entity: sensor.elpriset_just_nu_se3_current_price
+    name: Now
+    unit: " öre/kWh"
+    float_precision: 1
+    show:
+      in_chart: false
+      in_header: true
+      header_color_threshold: true
+    color_threshold:
+      - value: 0
+        color: "#64b5f6"
+      - value: 120
+        color: "#66bb6a"
+      - value: 200
+        color: "#ffca28"
+      - value: 300
+        color: "#ff7043"
       - value: 400
         color: "#e53935"
   - entity: sensor.elpriset_just_nu_se3_current_price
