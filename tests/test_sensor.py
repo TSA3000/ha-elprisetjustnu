@@ -297,8 +297,7 @@ class TestExtraStateAttributes:
         assert attrs["data_points"] == 96
         assert attrs["tomorrow_available"] is True
         assert isinstance(attrs["tomorrow_average"], float)
-        assert isinstance(attrs["all_prices_today"], list)
-        assert len(attrs["all_prices_today"]) == 96
+        assert attrs["data_points"] == 96
 
     def test_price_data_includes_tomorrow(self):
         now = datetime(2026, 3, 31, 10, 7, tzinfo=CET)
@@ -434,9 +433,11 @@ class TestLastWeekData:
             )
             attrs = sensor.extra_state_attributes
 
-        # First last week slot was 2026-03-24, shifted should be 2026-03-31
-        first_lw = attrs["price_data_last_week"][0]["start"]
-        assert "2026-03-31" in first_lw
+        # First entry is [timestamp_ms, price] — timestamp should be March 31 (shifted from March 24)
+        first_lw_ts = attrs["price_data_last_week"][0][0]
+        from datetime import datetime as dt
+        shifted_date = dt.fromtimestamp(first_lw_ts / 1000, tz=CET)
+        assert shifted_date.date().isoformat() == "2026-03-31"
 
     def test_last_week_empty_when_no_data(self):
         now = datetime(2026, 3, 31, 10, 7, tzinfo=CET)

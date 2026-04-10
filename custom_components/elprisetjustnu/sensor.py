@@ -275,27 +275,26 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         tomorrow = self._tomorrow()
         tomorrow_prices = self._prices_converted(tomorrow) if tomorrow else []
 
-        # Combined today + tomorrow price_data for seamless ApexCharts spanning
+        # Combined today + tomorrow as [timestamp_ms, price] pairs
+        # This compact format is native to ApexCharts and keeps attributes under 16KB
         combined_blocks = today + tomorrow
         price_data = [
-            {
-                "start": b["time_start"],
-                "price": _convert(b["SEK_per_kWh"], self._unit, self._vat),
-            }
+            [
+                int(datetime.fromisoformat(b["time_start"]).timestamp() * 1000),
+                _convert(b["SEK_per_kWh"], self._unit, self._vat),
+            ]
             for b in combined_blocks
         ]
 
-        # Last week same weekday — timestamps shifted +7 days to align on chart
+        # Last week same weekday — shifted +7 days to align on chart
         lw_today = self._last_week_today()
         lw_tomorrow = self._last_week_tomorrow()
         lw_combined = lw_today + lw_tomorrow
         price_data_last_week = [
-            {
-                "start": (
-                    datetime.fromisoformat(b["time_start"]) + timedelta(days=7)
-                ).isoformat(),
-                "price": _convert(b["SEK_per_kWh"], self._unit, self._vat),
-            }
+            [
+                int((datetime.fromisoformat(b["time_start"]) + timedelta(days=7)).timestamp() * 1000),
+                _convert(b["SEK_per_kWh"], self._unit, self._vat),
+            ]
             for b in lw_combined
         ]
 
@@ -311,7 +310,6 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
                 if current is not None
                 else None
             ),
-            "all_prices_today": prices,
             "data_points": len(prices),
             "price_data": price_data,
             "price_data_last_week": price_data_last_week,

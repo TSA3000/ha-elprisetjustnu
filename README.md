@@ -97,9 +97,8 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | `price_trend` | `rising` | vs next 15-min slot |
 | `price_level` | `cheap` | relative to today's range |
 | `next_price` | `132.5` | next slot price |
-| `price_data` | `[{"start": "...", "price": 177.55}, ...]` | today + tomorrow slots with timestamps |
-| `price_data_last_week` | `[{"start": "...", "price": 95.2}, ...]` | last week same weekday, timestamps shifted +7 days |
-| `all_prices_today` | `[112.3, 118.1, ...]` | flat list of today's prices |
+| `price_data` | `[[1711839600000, 95.2], ...]` | today + tomorrow as `[timestamp_ms, price]` pairs |
+| `price_data_last_week` | `[[1711839600000, 88.1], ...]` | last week same weekday, shifted +7 days |
 | `data_points` | `96` | number of today's slots |
 | `price_area` | `SE3` | configured area |
 | `unit` | `öre/kWh` | selected unit |
@@ -108,7 +107,7 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | `tomorrow_available` | `true` | whether tomorrow's prices are published |
 | `tomorrow_average` | `145.2` | tomorrow's average price |
 
-> **Note:** `price_data` includes both today and tomorrow when available. `price_data_last_week` contains the same weekday from last week with timestamps shifted +7 days, so they align perfectly when overlaid on a chart. All prices respect the VAT setting.
+> **Note:** `price_data` and `price_data_last_week` use the compact `[timestamp_ms, price]` format — native to ApexCharts. This keeps attributes well under HA's 16KB limit. All prices respect the VAT setting.
 
 ---
 
@@ -192,9 +191,7 @@ series:
       in_header: before_now
       header_color_threshold: true
     data_generator: |
-      return entity.attributes.price_data.map((item) => {
-        return [new Date(item["start"]).getTime(), item["price"]];
-      });
+      return entity.attributes.price_data;
     color_threshold:
       - value: 0
         color: "#64b5f6"
@@ -230,7 +227,7 @@ series:
       in_chart: false
       in_header: true
     data_generator: |
-      let prices = entity.attributes.price_data.map(x => x.price);
+      let prices = entity.attributes.price_data.map(x => x[1]);
       return [[new Date().getTime(), Math.min(...prices)]];
   - entity: sensor.elpriset_just_nu_se3_current_price
     name: Highest
@@ -240,7 +237,7 @@ series:
       in_chart: false
       in_header: true
     data_generator: |
-      let prices = entity.attributes.price_data.map(x => x.price);
+      let prices = entity.attributes.price_data.map(x => x[1]);
       return [[new Date().getTime(), Math.max(...prices)]];
 ```
 
@@ -317,9 +314,7 @@ series:
       in_header: before_now
       header_color_threshold: true
     data_generator: |
-      return entity.attributes.price_data.map((item) => {
-        return [new Date(item["start"]).getTime(), item["price"]];
-      });
+      return entity.attributes.price_data;
     color_threshold:
       - value: 0
         color: "#64b5f6"
@@ -347,9 +342,7 @@ series:
       in_header: false
       extremas: false
     data_generator: |
-      return (entity.attributes.price_data_last_week || []).map((item) => {
-        return [new Date(item["start"]).getTime(), item["price"]];
-      });
+      return entity.attributes.price_data_last_week || [];
   - entity: sensor.elpriset_just_nu_se3_current_price
     name: Lowest
     unit: " öre/kWh"
@@ -358,7 +351,7 @@ series:
       in_chart: false
       in_header: true
     data_generator: |
-      let prices = entity.attributes.price_data.map(x => x.price);
+      let prices = entity.attributes.price_data.map(x => x[1]);
       return [[new Date().getTime(), Math.min(...prices)]];
   - entity: sensor.elpriset_just_nu_se3_current_price
     name: Highest
@@ -368,7 +361,7 @@ series:
       in_chart: false
       in_header: true
     data_generator: |
-      let prices = entity.attributes.price_data.map(x => x.price);
+      let prices = entity.attributes.price_data.map(x => x[1]);
       return [[new Date().getTime(), Math.max(...prices)]];
 ```
 
