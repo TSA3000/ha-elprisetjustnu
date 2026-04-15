@@ -8,11 +8,14 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
 )
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, CONF_REGION, CONF_UNIT, CONF_INCLUDE_VAT, CONF_VAT, CONF_SHOW_UNIT, DEFAULT_VAT
+from .const import DOMAIN, CONF_REGION, CONF_UNIT, CONF_INCLUDE_VAT, CONF_VAT, DEFAULT_VAT
 from .coordinator import ElprisetCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,17 +83,20 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set up the Elpriset Just Nu sensor platform."""
     coordinator: ElprisetCoordinator = hass.data[DOMAIN][entry.entry_id]
     region = entry.options.get(CONF_REGION, entry.data.get(CONF_REGION))
     unit = entry.options.get(CONF_UNIT, entry.data.get(CONF_UNIT, "öre/kWh"))
     include_vat = entry.options.get(CONF_INCLUDE_VAT, entry.data.get(CONF_INCLUDE_VAT, True))
     vat = entry.options.get(CONF_VAT, entry.data.get(CONF_VAT, DEFAULT_VAT)) if include_vat else 0
-    show_unit = entry.options.get(CONF_SHOW_UNIT, entry.data.get(CONF_SHOW_UNIT, True))
 
     entities = [
-        ElprisSensor(coordinator, region, unit, vat, show_unit, description, entry.entry_id)
+        ElprisSensor(coordinator, region, unit, vat, description, entry.entry_id)
         for description in SENSOR_TYPES
     ]
     async_add_entities(entities)
@@ -127,6 +133,19 @@ def _find_block(blocks: list, predicate):
     return None
 
 
+def _shift_week_dst_safe(dt_obj: datetime) -> datetime:
+    """Shift a datetime +7 days preserving wall-clock time (DST-safe).
+
+    Using timedelta(days=7) on the raw datetime shifts by exactly
+    168 hours, which misaligns by 1 hour during DST transitions.
+    Instead, we replace the date component so the wall-clock time
+    (e.g., 14:00 CET) stays the same even if the offset changes
+    (e.g., 14:00 CEST).
+    """
+    target_date = dt_obj.date() + timedelta(days=7)
+    return dt_obj.replace(year=target_date.year, month=target_date.month, day=target_date.day)
+
+
 class ElprisSensor(CoordinatorEntity, SensorEntity):
     """Representation of an individual Elpris Sensor."""
 
@@ -136,10 +155,9 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         region: str,
         unit: str,
         vat: float,
-        show_unit: bool,
         description: SensorEntityDescription,
         entry_id: str,
-    ):
+    ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
         self.region = region
@@ -147,7 +165,7 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         self._vat = vat
         self._attr_unique_id = f"{entry_id}_{region.lower()}_{description.key}"
         self._attr_has_entity_name = True
-        self._attr_native_unit_of_measurement = unit if show_unit else None
+        self._attr_native_unit_of_measurement = unit
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
             name=f"Elpriset Just Nu ({region})",
@@ -276,7 +294,6 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
         tomorrow_prices = self._prices_converted(tomorrow) if tomorrow else []
 
         # Combined today + tomorrow as [timestamp_ms, price] pairs
-        # This compact format is native to ApexCharts and keeps attributes under 16KB
         combined_blocks = today + tomorrow
         price_data = [
             [
@@ -286,13 +303,13 @@ class ElprisSensor(CoordinatorEntity, SensorEntity):
             for b in combined_blocks
         ]
 
-        # Last week same weekday — shifted +7 days to align on chart
+        # Last week same weekday — shifted +7 days using DST-safe replace
         lw_today = self._last_week_today()
         lw_tomorrow = self._last_week_tomorrow()
         lw_combined = lw_today + lw_tomorrow
         price_data_last_week = [
             [
-                int((datetime.fromisoformat(b["time_start"]) + timedelta(days=7)).timestamp() * 1000),
+                int(_shift_week_dst_safe(datetime.fromisoformat(b["time_start"])).timestamp() * 1000),
                 _convert(b["SEK_per_kWh"], self._unit, self._vat),
             ]
             for b in lw_combined

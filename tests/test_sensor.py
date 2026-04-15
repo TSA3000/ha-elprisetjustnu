@@ -13,6 +13,7 @@ from custom_components.elprisetjustnu.sensor import (
     _convert,
     _get_price_level,
     _find_block,
+    _shift_week_dst_safe,
 )
 
 from .conftest import SAMPLE_TODAY, SAMPLE_TOMORROW, SAMPLE_LAST_WEEK_TODAY, SAMPLE_LAST_WEEK_TOMORROW, CET
@@ -102,6 +103,30 @@ def test_find_block_no_match():
 
 def test_find_block_empty_list():
     assert _find_block([], lambda s, e: True) is None
+
+
+# ---------------------------------------------------------------------------
+# DST-safe shift tests
+# ---------------------------------------------------------------------------
+
+
+def test_shift_week_dst_safe_normal():
+    """Shifting by 7 days keeps wall-clock time."""
+    dt_obj = datetime(2026, 3, 17, 14, 30, tzinfo=CET)
+    shifted = _shift_week_dst_safe(dt_obj)
+    assert shifted.day == 24
+    assert shifted.hour == 14
+    assert shifted.minute == 30
+
+
+def test_shift_week_dst_safe_preserves_time():
+    """Wall-clock time is preserved even across months."""
+    dt_obj = datetime(2026, 3, 28, 8, 0, tzinfo=CET)
+    shifted = _shift_week_dst_safe(dt_obj)
+    assert shifted.month == 4
+    assert shifted.day == 4
+    assert shifted.hour == 8
+    assert shifted.minute == 0
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +322,6 @@ class TestExtraStateAttributes:
         assert attrs["data_points"] == 96
         assert attrs["tomorrow_available"] is True
         assert isinstance(attrs["tomorrow_average"], float)
-        assert attrs["data_points"] == 96
 
     def test_price_data_includes_tomorrow(self):
         now = datetime(2026, 3, 31, 10, 7, tzinfo=CET)
@@ -362,6 +386,14 @@ class TestExtraStateAttributes:
 
         assert attrs["vat_percent"] == 0
         assert attrs["includes_vat"] is False
+
+    def test_unit_always_set(self):
+        """Unit should always be present on the sensor (Fix #4)."""
+        sensor = _make_sensor("current_price", unit="öre/kWh", today=SAMPLE_TODAY)
+        assert sensor._attr_native_unit_of_measurement == "öre/kWh"
+
+        sensor_sek = _make_sensor("current_price", unit="SEK/kWh", today=SAMPLE_TODAY)
+        assert sensor_sek._attr_native_unit_of_measurement == "SEK/kWh"
 
 
 class TestVATApplied:
@@ -435,8 +467,7 @@ class TestLastWeekData:
 
         # First entry is [timestamp_ms, price] — timestamp should be March 31 (shifted from March 24)
         first_lw_ts = attrs["price_data_last_week"][0][0]
-        from datetime import datetime as dt
-        shifted_date = dt.fromtimestamp(first_lw_ts / 1000, tz=CET)
+        shifted_date = datetime.fromtimestamp(first_lw_ts / 1000, tz=CET)
         assert shifted_date.date().isoformat() == "2026-03-31"
 
     def test_last_week_empty_when_no_data(self):

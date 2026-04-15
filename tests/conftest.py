@@ -12,7 +12,6 @@ from custom_components.elprisetjustnu.const import (
     CONF_UNIT,
     CONF_INCLUDE_VAT,
     CONF_VAT,
-    CONF_SHOW_UNIT,
     DEFAULT_VAT,
 )
 
@@ -25,7 +24,6 @@ MOCK_CONFIG_DATA = {
     CONF_UNIT: "öre/kWh",
     CONF_INCLUDE_VAT: True,
     CONF_VAT: float(DEFAULT_VAT),
-    CONF_SHOW_UNIT: True,
 }
 
 
@@ -74,11 +72,7 @@ SAMPLE_LAST_WEEK_TOMORROW = make_day_data("2026-03-25", base_price=1.1)
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
-    """Enable custom integrations for all tests.
-
-    This fixture is provided by pytest-homeassistant-custom-component
-    and makes HA discover custom_components/ during tests.
-    """
+    """Enable custom integrations for all tests."""
     yield
 
 

@@ -20,6 +20,8 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 - **15-minute intervals:** full 96-slot daily coverage
 - **Smart attributes:** price trend, price level, tomorrow average, full price data
 - **ApexCharts support:** `price_data` and `price_data_last_week` for mixed charts
+- **Swedish timezone aware:** always uses Europe/Stockholm for date calculations
+- **DST-safe:** last week chart overlay preserves wall-clock time across DST transitions
 - **Error recovery:** keeps last known values if the API is temporarily unavailable
 - **Device grouping:** all sensors under one Device in Home Assistant
 - **Diagnostics:** download debug info from the HA UI for easy troubleshooting
@@ -55,13 +57,14 @@ Supports the 15-minute price intervals introduced in Sweden in October 2025.
 | Unit | öre/kWh | öre/kWh or SEK/kWh |
 | Include VAT (moms) | ✅ On | Apply VAT to all prices |
 | VAT rate (%) | 25 | Only used when Include VAT is on |
-| Show unit on sensors | ✅ On | Display unit label on sensor values |
 
 4. Click **Submit**
 
 > To change any setting later, click **Configure** on the integration card — no need to remove and re-add.
 
 > Each price area can only be configured once.
+
+> To hide the unit label on dashboard cards, use the HA frontend entity customization rather than stripping it from the sensor.
 
 ---
 

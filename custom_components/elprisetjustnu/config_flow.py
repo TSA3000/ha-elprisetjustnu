@@ -11,7 +11,6 @@ from .const import (
     CONF_UNIT,
     CONF_INCLUDE_VAT,
     CONF_VAT,
-    CONF_SHOW_UNIT,
     DEFAULT_VAT,
     REGIONS,
     UNITS,
@@ -59,7 +58,6 @@ class ElprisetJustNuConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode=selector.NumberSelectorMode.BOX,
                     )
                 ),
-                vol.Required(CONF_SHOW_UNIT, default=True): selector.BooleanSelector(),
             }
         )
 
@@ -92,9 +90,6 @@ class ElprisetJustNuOptionsFlowHandler(config_entries.OptionsFlow):
         current_vat = self.config_entry.options.get(
             CONF_VAT, self.config_entry.data.get(CONF_VAT, DEFAULT_VAT)
         )
-        current_show_unit = self.config_entry.options.get(
-            CONF_SHOW_UNIT, self.config_entry.data.get(CONF_SHOW_UNIT, True)
-        )
 
         options_schema = vol.Schema(
             {
@@ -120,7 +115,6 @@ class ElprisetJustNuOptionsFlowHandler(config_entries.OptionsFlow):
                         mode=selector.NumberSelectorMode.BOX,
                     )
                 ),
-                vol.Required(CONF_SHOW_UNIT, default=current_show_unit): selector.BooleanSelector(),
             }
         )
 

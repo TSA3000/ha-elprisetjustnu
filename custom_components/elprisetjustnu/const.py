@@ -7,7 +7,6 @@ CONF_REGION = "region"
 CONF_UNIT = "unit"
 CONF_INCLUDE_VAT = "include_vat"
 CONF_VAT = "vat"
-CONF_SHOW_UNIT = "show_unit"
 
 REGIONS = ["SE1", "SE2", "SE3", "SE4"]
 UNITS = ["öre/kWh", "SEK/kWh"]

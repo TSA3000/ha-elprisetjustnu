@@ -8,8 +8,7 @@
           "region": "Price area",
           "unit": "Unit",
           "include_vat": "Include VAT (moms)",
-          "vat": "VAT rate (%)",
-          "show_unit": "Show unit on sensors"
+          "vat": "VAT rate (%)"
         }
       }
     },
@@ -29,8 +28,7 @@
           "region": "Price area",
           "unit": "Unit",
           "include_vat": "Include VAT (moms)",
-          "vat": "VAT rate (%)",
-          "show_unit": "Show unit on sensors"
+          "vat": "VAT rate (%)"
         }
       }
     }

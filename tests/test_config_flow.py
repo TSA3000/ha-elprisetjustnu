@@ -13,21 +13,19 @@ from custom_components.elprisetjustnu.const import (
     CONF_UNIT,
     CONF_INCLUDE_VAT,
     CONF_VAT,
-    CONF_SHOW_UNIT,
     DOMAIN,
 )
 
 from .conftest import MOCK_CONFIG_DATA
 
 
-def _input(region="SE3", unit="öre/kWh", include_vat=True, vat=25.0, show_unit=True):
+def _input(region="SE3", unit="öre/kWh", include_vat=True, vat=25.0):
     """Build a complete user_input dict."""
     return {
         CONF_REGION: region,
         CONF_UNIT: unit,
         CONF_INCLUDE_VAT: include_vat,
         CONF_VAT: vat,
-        CONF_SHOW_UNIT: show_unit,
     }
 
 
@@ -135,16 +133,3 @@ async def test_vat_disabled(hass: HomeAssistant) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_INCLUDE_VAT] is False
-
-
-async def test_unit_hidden(hass: HomeAssistant) -> None:
-    """Test creating an entry with unit hidden."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        user_input=_input(region="SE4", show_unit=False),
-    )
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_SHOW_UNIT] is False

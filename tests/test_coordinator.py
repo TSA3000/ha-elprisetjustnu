@@ -14,7 +14,9 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.elprisetjustnu.coordinator import ElprisetCoordinator
 
-from .conftest import SAMPLE_TODAY, SAMPLE_TOMORROW, CET
+from .conftest import SAMPLE_TODAY, SAMPLE_TOMORROW
+
+UTC = timezone.utc
 
 
 def _mock_response(status: int = 200, json_data: list | None = None):
@@ -45,18 +47,22 @@ def _responses_4(today_s=200, today_d=None, tomorrow_s=200, tomorrow_d=None,
 
 
 @pytest.fixture
-def mock_now():
-    """Patch dt_util.now to return a fixed time: 2026-03-31 10:07 CET."""
-    fixed = datetime(2026, 3, 31, 10, 7, 0, tzinfo=CET)
+def mock_utcnow():
+    """Patch dt_util.utcnow to return a fixed UTC time.
+
+    2026-03-31 09:07 UTC = 2026-03-31 10:07 CET (11:07 CEST).
+    The Swedish date is March 31 regardless of DST.
+    """
+    fixed = datetime(2026, 3, 31, 9, 7, 0, tzinfo=UTC)
     with patch(
         "custom_components.elprisetjustnu.coordinator.dt_util"
     ) as mock_dt:
-        mock_dt.now.return_value = fixed
+        mock_dt.utcnow.return_value = fixed
         yield mock_dt
 
 
 @pytest.fixture
-def coordinator(hass: HomeAssistant, mock_now):
+def coordinator(hass: HomeAssistant, mock_utcnow):
     """Create a coordinator with a mocked session."""
     with patch(
         "custom_components.elprisetjustnu.coordinator.async_get_clientsession"
@@ -136,11 +142,7 @@ async def test_network_error_uses_cache(coordinator: ElprisetCoordinator) -> Non
 
 
 async def test_network_error_no_cache_raises(coordinator: ElprisetCoordinator) -> None:
-    """Test that a network error with no cache raises UpdateFailed.
-
-    _fetch_day catches its own errors, so we mock it directly to simulate
-    an unexpected failure in _async_update_data's outer try block.
-    """
+    """Test that a network error with no cache raises UpdateFailed."""
     with patch.object(
         coordinator, "_fetch_day", new_callable=AsyncMock, side_effect=Exception("unexpected")
     ):
@@ -157,14 +159,13 @@ async def test_midnight_clears_tomorrow_cache(coordinator: ElprisetCoordinator) 
     data = await coordinator._async_update_data()
     assert len(data["tomorrow"]) == 96
 
-    # Simulate date change to April 1
-    new_now = datetime(2026, 4, 1, 0, 15, 0, tzinfo=CET)
+    # Simulate date change to April 1 (23:15 UTC = 01:15 CEST April 1 in Sweden)
+    new_utcnow = datetime(2026, 3, 31, 23, 15, 0, tzinfo=UTC)
     with patch(
         "custom_components.elprisetjustnu.coordinator.dt_util"
     ) as mock_dt:
-        mock_dt.now.return_value = new_now
+        mock_dt.utcnow.return_value = new_utcnow
 
-        # 4 calls: April 1 data, April 2 (404), last week March 25, March 26
         coordinator._session.get = MagicMock(side_effect=_responses_4(
             today_d=SAMPLE_TODAY, tomorrow_s=404,
         ))
@@ -212,3 +213,30 @@ async def test_last_week_cached_per_day(coordinator: ElprisetCoordinator) -> Non
     coordinator._session.get = MagicMock(side_effect=capture_get)
     await coordinator._async_update_data()
     assert len(calls) == 2
+
+
+async def test_swedish_timezone_used_for_date(coordinator: ElprisetCoordinator) -> None:
+    """Test that Swedish timezone is used even when HA is in UTC.
+
+    At 23:30 UTC on March 30, it's already 01:30 CEST March 31 in Sweden.
+    The API should fetch March 31 data, not March 30.
+    """
+    late_utc = datetime(2026, 3, 30, 23, 30, 0, tzinfo=UTC)
+    with patch(
+        "custom_components.elprisetjustnu.coordinator.dt_util"
+    ) as mock_dt:
+        mock_dt.utcnow.return_value = late_utc
+
+        calls = []
+
+        def capture_get(url, **kwargs):
+            calls.append(url)
+            return _mock_response(200, [])
+
+        coordinator._session.get = MagicMock(side_effect=capture_get)
+        coordinator._last_week_fetched_date = None  # force refetch
+        await coordinator._async_update_data()
+
+    # Should fetch March 31 (Swedish date), not March 30 (UTC date)
+    assert "03-31_SE3.json" in calls[0]
+    assert "04-01_SE3.json" in calls[1]

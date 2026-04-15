@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import zoneinfo
 from datetime import timedelta
 
 import aiohttp
@@ -16,6 +17,11 @@ from .const import DOMAIN, UPDATE_INTERVAL_MINUTES
 _LOGGER = logging.getLogger(__name__)
 
 API_TIMEOUT = ClientTimeout(total=10)
+
+# The API serves prices by Swedish calendar date, so we must always
+# determine "today" and "tomorrow" in Swedish local time — regardless
+# of the HA server's configured timezone.
+SWEDISH_TZ = zoneinfo.ZoneInfo("Europe/Stockholm")
 
 
 class ElprisetCoordinator(DataUpdateCoordinator):
@@ -56,8 +62,10 @@ class ElprisetCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict:
         """Fetch today's, tomorrow's, and last week's prices."""
-        now = dt_util.now()
-        today = now.date()
+        # Always use Swedish local time for date calculations — the API
+        # serves prices by Swedish calendar date, not the HA server's TZ.
+        now_swedish = dt_util.utcnow().astimezone(SWEDISH_TZ)
+        today = now_swedish.date()
         tomorrow = today + timedelta(days=1)
 
         # Clear stale tomorrow cache when the date rolls over.

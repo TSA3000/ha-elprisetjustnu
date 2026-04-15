@@ -8,8 +8,7 @@
           "region": "Elområde",
           "unit": "Enhet",
           "include_vat": "Inkludera moms",
-          "vat": "Momssats (%)",
-          "show_unit": "Visa enhet på sensorer"
+          "vat": "Momssats (%)"
         }
       }
     },
@@ -29,8 +28,7 @@
           "region": "Elområde",
           "unit": "Enhet",
           "include_vat": "Inkludera moms",
-          "vat": "Momssats (%)",
-          "show_unit": "Visa enhet på sensorer"
+          "vat": "Momssats (%)"
         }
       }
     }
